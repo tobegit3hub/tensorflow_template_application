@@ -1,6 +1,5 @@
 
-rFlow Recommend Demo
-
+# Deep Recommend System
 
 Inspired by <https://github.com/mark-watson/cancer-deep-learning-model>.
 
