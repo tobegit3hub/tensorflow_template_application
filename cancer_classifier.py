@@ -127,8 +127,12 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 
+tf.scalar_summary('loss', loss2)
+tf.scalar_summary('accuracy', accuracy)
+
 with tf.Session() as sess:
     # Write summary for TensorBoard
+    summary_op = tf.merge_all_summaries()
     output_dir = FLAGS.output_dir
     writer = tf.train.SummaryWriter(output_dir, sess.graph)
 
@@ -146,7 +150,7 @@ with tf.Session() as sess:
 
             if epoch % steps_to_validate == 0:
                 #import ipdb;ipdb.set_trace()
-                accuracy_value = sess.run(accuracy)
+                accuracy_value, summary_value = sess.run([accuracy, summary_op])
                 print("Epoch: {}, loss: {}, accuracy: {}".format(epoch, loss_value, accuracy_value))
 
                 #label, softmax = sess.run([validate_labels, validate_softmax])
@@ -155,8 +159,7 @@ with tf.Session() as sess:
                 #print("------------ Softmax ---------")
                 #print(softmax[0:10])
 
-            #l = sess.run(logits2)
-            #print("logist2: {}".format(l))
+                writer.add_summary(summary_value, epoch)
 
     except tf.errors.OutOfRangeError:
         print("Done training after reading all data")
