@@ -124,6 +124,7 @@ correct_prediction = tf.equal(tf.argmax(validate_softmax, 1), validate_batch_lab
 #correct_prediction = tf.equal(tf.argmax(validate_softmax,1), tf.argmax(validate_softmax,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+saver = tf.train.Saver()
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 
@@ -160,6 +161,7 @@ with tf.Session() as sess:
                 #print(softmax[0:10])
 
                 writer.add_summary(summary_value, epoch)
+                saver.save(sess, "./checkpoint/checkpoint.cp", global_step=epoch)
 
     except tf.errors.OutOfRangeError:
         print("Done training after reading all data")
