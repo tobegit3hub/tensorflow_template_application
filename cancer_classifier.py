@@ -17,6 +17,12 @@ flags.DEFINE_string("optimizer", "sgd", "optimizer to import")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_to_validate', 10, 'Steps to validate and print loss')
+flags.DEFINE_string("mode", "train", "Option mode: train, test, inference")
+
+
+TRAIN_MODE = "train"
+TEST_MODE = "test"
+INFERENCE_MODE = "inference"
 
 feature_size = 9
 # Read serialized examples from filename queue
@@ -124,6 +130,7 @@ correct_prediction = tf.equal(tf.argmax(validate_softmax, 1), validate_batch_lab
 #correct_prediction = tf.equal(tf.argmax(validate_softmax,1), tf.argmax(validate_softmax,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+mode = FLAGS.mode
 saver = tf.train.Saver()
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
@@ -139,35 +146,39 @@ with tf.Session() as sess:
 
     sess.run(init_op)
 
-    # Get coordinator and run queues to read data
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+    if mode == TRAIN_MODE:
 
-    try:
-        while not coord.should_stop():
-            # Run train op
-            #_, loss_value, epoch = sess.run([train_op, loss, global_step])
-            _, loss_value, epoch = sess.run([train_op2, loss2, global_step])
+        # Get coordinator and run queues to read data
+        coord = tf.train.Coordinator()
+        threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
-            if epoch % steps_to_validate == 0:
-                #import ipdb;ipdb.set_trace()
-                accuracy_value, summary_value = sess.run([accuracy, summary_op])
-                print("Epoch: {}, loss: {}, accuracy: {}".format(epoch, loss_value, accuracy_value))
+        try:
+            while not coord.should_stop():
+                # Run train op
+                _, loss_value, epoch = sess.run([train_op2, loss2, global_step])
 
-                #label, softmax = sess.run([validate_labels, validate_softmax])
-                #print("------------ Label -----------")
-                #print(label[0:10])
-                #print("------------ Softmax ---------")
-                #print(softmax[0:10])
+                if epoch % steps_to_validate == 0:
+                    accuracy_value, summary_value = sess.run([accuracy, summary_op])
+                    print("Epoch: {}, loss: {}, accuracy: {}".format(epoch, loss_value, accuracy_value))
 
-                writer.add_summary(summary_value, epoch)
-                saver.save(sess, "./checkpoint/checkpoint.cp", global_step=epoch)
+                    writer.add_summary(summary_value, epoch)
+                    saver.save(sess, "./checkpoint/checkpoint.ckpt", global_step=epoch)
 
-    except tf.errors.OutOfRangeError:
-        print("Done training after reading all data")
-    finally:
-        coord.request_stop()
+        except tf.errors.OutOfRangeError:
+            print("Done training after reading all data")
+        finally:
+            coord.request_stop()
 
-    # Wait for threads to exit
-    coord.join(threads)
+        # Wait for threads to exit
+        coord.join(threads)
+
+    elif mode == INFERENCE_MODE:
+        print("hello inference")
+
+        inference_data = ""
+        ckpt = tf.train.get_checkpoint_state("./checkpoint/")
+        if ckpt and ckpt.model_checkpoint_path:
+            saver.restore(sess, ckpt.model_checkpoint_path)
+            w, b = sess.run([weights2, biases2])
+            print("w: {}, b: {}".format(w, b))
 
