@@ -3,6 +3,7 @@
 import tensorflow as tf
 import math
 import os
+import numpy as np
 
 # Define parameters
 flags = tf.app.flags
@@ -127,8 +128,12 @@ validate_batch_labels = tf.to_int64(validate_batch_labels)
 validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) + biases2)
 
 correct_prediction = tf.equal(tf.argmax(validate_softmax, 1), validate_batch_labels)
-#correct_prediction = tf.equal(tf.argmax(validate_softmax,1), tf.argmax(validate_softmax,1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+
+inference_features = tf.placeholder("float", [None, 9])
+inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) + biases2)
+inference_op = tf.argmax(inference_softmax, 1)
+
 
 mode = FLAGS.mode
 saver = tf.train.Saver()
@@ -173,12 +178,20 @@ with tf.Session() as sess:
         coord.join(threads)
 
     elif mode == INFERENCE_MODE:
-        print("hello inference")
+        print("Start to run inference")
 
-        inference_data = ""
+        inference_data = np.array([(10,10,10,8,6,1,8,9,1), (6,2,1,1,1,1,7,1,1), (2,5,3,3,6,7,7,5,1), (10,4,3,1,3,3,6,5,2), (6,10,10,2,8,10,7,3,3), (5,6,5,6,10,1,3,1,1), (1,1,1,1,2,1,2,1,2), (3,7,7,4,4,9,4,8,1), (1,1,1,1,2,1,2,1,1), (4,1,1,3,2,1,3,1,1) ])
+        correct_labels = [1,0,1,1,1,1,0,1,0,0]
+
         ckpt = tf.train.get_checkpoint_state("./checkpoint/")
         if ckpt and ckpt.model_checkpoint_path:
+            print("Use the model {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
-            w, b = sess.run([weights2, biases2])
-            print("w: {}, b: {}".format(w, b))
+            inference_result = sess.run(inference_op, feed_dict={inference_features: inference_data})
+            print("Real data is: {}".format(correct_labels))
+            print("Inference data is {}".format(inference_result))
+    
+        else:
+            print("No model found, exit")
+            exit()
 
