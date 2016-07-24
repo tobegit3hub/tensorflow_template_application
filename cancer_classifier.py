@@ -10,32 +10,38 @@ flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
-flags.DEFINE_integer("batch_size", 1024, "indicates batch size in a single gpu, default is 1024")
+flags.DEFINE_integer("batch_size", 1024,
+                     "indicates batch size in a single gpu, default is 1024")
 flags.DEFINE_integer("thread_number", 1, "Number of thread to read data")
-flags.DEFINE_integer("min_after_dequeue", 100, "indicates min_after_dequeue of shuffle queue")
-flags.DEFINE_string("output_dir", "./tensorboard/", "indicates training output")
+flags.DEFINE_integer("min_after_dequeue", 100,
+                     "indicates min_after_dequeue of shuffle queue")
+flags.DEFINE_string("output_dir", "./tensorboard/",
+                    "indicates training output")
 flags.DEFINE_string("optimizer", "sgd", "optimizer to import")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('steps_to_validate', 10, 'Steps to validate and print loss')
+flags.DEFINE_integer('steps_to_validate', 10,
+                     'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train", "Option mode: train, test, inference")
-
 
 TRAIN_MODE = "train"
 TEST_MODE = "test"
 INFERENCE_MODE = "inference"
 
 feature_size = 9
+
+
 # Read serialized examples from filename queue
 def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(
-        serialized_example,
-        features={
-            "label": tf.FixedLenFeature([], tf.float32),
-            "features": tf.FixedLenFeature([feature_size], tf.float32),
-        })
+    features = tf.parse_single_example(serialized_example,
+                                       features={
+                                           "label": tf.FixedLenFeature(
+                                               [], tf.float32),
+                                           "features": tf.FixedLenFeature(
+                                               [feature_size], tf.float32),
+                                       })
 
     label = features["label"]
     features = features["features"]
@@ -57,7 +63,9 @@ capacity = thread_number * batch_size + min_after_dequeue
 # Batch get label and features
 #filename_queue = tf.train.string_input_producer([input_file],
 #                                                num_epochs=epoch_number)
-filename_queue = tf.train.string_input_producer(tf.train.match_filenames_once("data/cancer.csv.tfrecords"), num_epochs=epoch_number)
+filename_queue = tf.train.string_input_producer(
+    tf.train.match_filenames_once("data/cancer.csv.tfrecords"),
+    num_epochs=epoch_number)
 label, features = read_and_decode(filename_queue)
 batch_labels, batch_features = tf.train.shuffle_batch(
     [label, features],
@@ -66,7 +74,9 @@ batch_labels, batch_features = tf.train.shuffle_batch(
     capacity=capacity,
     min_after_dequeue=min_after_dequeue)
 
-validate_filename_queue = tf.train.string_input_producer(tf.train.match_filenames_once("data/cancer_test.csv.tfrecords"), num_epochs=epoch_number)
+validate_filename_queue = tf.train.string_input_producer(
+    tf.train.match_filenames_once("data/cancer_test.csv.tfrecords"),
+    num_epochs=epoch_number)
 validate_label, validate_features = read_and_decode(validate_filename_queue)
 validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
     [validate_label, validate_features],
@@ -120,20 +130,23 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 weights2 = tf.Variable(tf.truncated_normal([feature_size, 2]))
 biases2 = tf.Variable(tf.truncated_normal([2]))
 logits2 = tf.matmul(batch_features, weights2) + biases2
-cross_entropy2 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits2, batch_labels)
+cross_entropy2 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits2,
+                                                                batch_labels)
 loss2 = tf.reduce_mean(cross_entropy2)
 train_op2 = optimizer.minimize(loss2, global_step=global_step)
 
 validate_batch_labels = tf.to_int64(validate_batch_labels)
-validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) + biases2)
+validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) +
+                                 biases2)
 
-correct_prediction = tf.equal(tf.argmax(validate_softmax, 1), validate_batch_labels)
+correct_prediction = tf.equal(
+    tf.argmax(validate_softmax, 1), validate_batch_labels)
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 inference_features = tf.placeholder("float", [None, 9])
-inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) + biases2)
+inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) +
+                                  biases2)
 inference_op = tf.argmax(inference_softmax, 1)
-
 
 mode = FLAGS.mode
 saver = tf.train.Saver()
@@ -160,14 +173,19 @@ with tf.Session() as sess:
         try:
             while not coord.should_stop():
                 # Run train op
-                _, loss_value, epoch = sess.run([train_op2, loss2, global_step])
+                _, loss_value, epoch = sess.run([train_op2, loss2, global_step
+                                                 ])
 
                 if epoch % steps_to_validate == 0:
-                    accuracy_value, summary_value = sess.run([accuracy, summary_op])
-                    print("Epoch: {}, loss: {}, accuracy: {}".format(epoch, loss_value, accuracy_value))
+                    accuracy_value, summary_value = sess.run([accuracy,
+                                                              summary_op])
+                    print("Epoch: {}, loss: {}, accuracy: {}".format(
+                        epoch, loss_value, accuracy_value))
 
                     writer.add_summary(summary_value, epoch)
-                    saver.save(sess, "./checkpoint/checkpoint.ckpt", global_step=epoch)
+                    saver.save(sess,
+                               "./checkpoint/checkpoint.ckpt",
+                               global_step=epoch)
 
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")
@@ -180,18 +198,24 @@ with tf.Session() as sess:
     elif mode == INFERENCE_MODE:
         print("Start to run inference")
 
-        inference_data = np.array([(10,10,10,8,6,1,8,9,1), (6,2,1,1,1,1,7,1,1), (2,5,3,3,6,7,7,5,1), (10,4,3,1,3,3,6,5,2), (6,10,10,2,8,10,7,3,3), (5,6,5,6,10,1,3,1,1), (1,1,1,1,2,1,2,1,2), (3,7,7,4,4,9,4,8,1), (1,1,1,1,2,1,2,1,1), (4,1,1,3,2,1,3,1,1) ])
-        correct_labels = [1,0,1,1,1,1,0,1,0,0]
+        inference_data = np.array(
+            [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1), (
+                2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
+             (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1), (
+                 1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1), (
+                     1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
+        correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
 
         ckpt = tf.train.get_checkpoint_state("./checkpoint/")
         if ckpt and ckpt.model_checkpoint_path:
             print("Use the model {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
-            inference_result = sess.run(inference_op, feed_dict={inference_features: inference_data})
+            inference_result = sess.run(
+                inference_op,
+                feed_dict={inference_features: inference_data})
             print("Real data is: {}".format(correct_labels))
             print("Inference data is {}".format(inference_result))
-    
+
         else:
             print("No model found, exit")
             exit()
-
