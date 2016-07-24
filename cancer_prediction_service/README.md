@@ -1,16 +1,26 @@
+# Cancer Predictiton Service
 
-
-## Installation
-
-```
-pip install django
-```
+This is the HTTP service to load TensorFlow model and inference to predict cancer.
 
 ## Usage
+
+Use HTTP client with curl, postman or [bat](https://github.com/astaxie/bat).
+
+### Inference
 
 ```
 bat post http://127.0.0.1:8000/cancer_predict/predict/ cancer_features="10,10,10,8,6,1,8,9,1;6,2,1,1,1,1,7,1,1"
 ```
+
+![](./images/predict.png)
+
+### Online training
+
+```
+bat post http://127.0.0.1:8000/cancer_predict/online_train/ cancer_features="10,10,10,8,6,1,8,9,1,1;6,2,1,1,1,1,7,1,1,0"
+```
+
+![](./images/online_train.png)
 
 ## Implementation
 
@@ -18,4 +28,6 @@ bat post http://127.0.0.1:8000/cancer_predict/predict/ cancer_features="10,10,10
 django-admin startproject cancer_prediction_service
 
 python manage.py startapp cancer_predict
+
+# Add customized urls and views.
 ```

@@ -3,6 +3,12 @@
 
 Inspired by <https://github.com/mark-watson/cancer-deep-learning-model>.
 
+## Installation
+
+```
+pip install -r ./requirements.txt
+```
+
 ## Prepare Data
 
 The data format should be CSV and looks like this.
