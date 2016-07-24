@@ -83,6 +83,6 @@ def online_train(request):
         print("Epoch: {}, loss: {}".format(epoch, loss_value))
         saver.save(sess, "/Users/tobe/code/deep_recommend_system/checkpoint//checkpoint.ckpt", global_step=epoch) 
 
-        return HttpResponse("Success to online train for cancer prediction")
+        return HttpResponse("Success to online train for cancer prediction, latest epoch: {}, loss: {}".format(epoch, loss_value))
     else:
         return HttpResponse("Please use POST to request with data")
