@@ -26,18 +26,16 @@ We can convert CSV file to TFRecords and print the content.
 
 ```
 cd ./data/
-python ./convert_csv_to_tfrecords.py
-python ./print_tfrecords.py
+./convert_cancer_to_tfrecords.py
+./print_cancer_tfrecords.py
 ```
 
 ## Develop program
 
-We can use the `demo.py` directly.
+We can use the `cancer_classifier.py` directly.
 
 ```
-python ./demo.py
-
-python train.py --model googlenet --learning_rate 0.01 --epoch 3000 --train_mode 1 --batch_size 512 --gpus 4 --capacity 10000 --labels 10576 --samples 352000 --val_samples 88000 --channels 3 --image_size 224 --train_file /data/patch224_224/representation/train/part --val_file /data/patch224_224/representation/val/part --output_dir /data/tmp
+python ./cancer_classifier.py
 ```
 
 And edit the model for testing.
