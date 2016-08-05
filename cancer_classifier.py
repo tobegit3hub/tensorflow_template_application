@@ -130,19 +130,37 @@ optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 weights2 = tf.Variable(tf.truncated_normal([feature_size, 2]))
 biases2 = tf.Variable(tf.truncated_normal([2]))
 logits2 = tf.matmul(batch_features, weights2) + biases2
+
+
+batch_labels = tf.cast(batch_labels, tf.int32)
+
 cross_entropy2 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits2,
                                                                 batch_labels)
 loss2 = tf.reduce_mean(cross_entropy2)
 train_op2 = optimizer.minimize(loss2, global_step=global_step)
 
-validate_batch_labels = tf.to_int64(validate_batch_labels)
+# Compute accuracy
 validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) +
                                  biases2)
 
+validate_batch_labels = tf.to_int64(validate_batch_labels)
 correct_prediction = tf.equal(
     tf.argmax(validate_softmax, 1), validate_batch_labels)
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
+# Compute auc
+validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
+num_labels = 2
+sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
+derived_size = tf.shape(validate_batch_labels)[0]
+indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
+concated = tf.concat(1, [indices, sparse_labels])
+outshape = tf.pack([derived_size, num_labels])
+new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
+
+_, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax, new_validate_batch_labels)
+
+# Do inference
 inference_features = tf.placeholder("float", [None, 9])
 inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) +
                                   biases2)
@@ -163,6 +181,7 @@ with tf.Session() as sess:
     writer = tf.train.SummaryWriter(output_dir, sess.graph)
 
     sess.run(init_op)
+    sess.run(tf.initialize_local_variables())
 
     if mode == TRAIN_MODE:
 
@@ -177,10 +196,9 @@ with tf.Session() as sess:
                                                  ])
 
                 if epoch % steps_to_validate == 0:
-                    accuracy_value, summary_value = sess.run([accuracy,
-                                                              summary_op])
-                    print("Epoch: {}, loss: {}, accuracy: {}".format(
-                        epoch, loss_value, accuracy_value))
+                    accuracy_value, auc_value, summary_value = sess.run([accuracy, auc_op, summary_op])
+                    print("Epoch: {}, loss: {}, accuracy: {}, auc: {}".format(
+                        epoch, loss_value, accuracy_value, auc_value))
 
                     writer.add_summary(summary_value, epoch)
                     saver.save(sess,
