@@ -5,8 +5,9 @@ import os
 
 # Read TFRecords file
 current_path = os.getcwd()
-input_file = os.path.join(current_path, "cancer.csv.tfrecords")
-#input_file = os.path.join(current_path, "cancer_test.csv.tfrecords")
+tfrecords_file_name = "cancer.csv.tfrecords"
+#tfrecords_file_name = "cancer_test.csv.tfrecords"
+input_file = os.path.join(current_path, tfrecords_file_name)
 
 # Constrain the data to print
 max_print_number = 100

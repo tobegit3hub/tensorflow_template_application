@@ -1,17 +1,14 @@
+## Introduction
 
-# Deep Recommend System
+It's the general project to walk through the proceses of using [TensorFlow](https://github.com/tensorflow/tensorflow).
 
-Inspired by <https://github.com/mark-watson/cancer-deep-learning-model>.
+Most data is stored in CSV files and you can learn to convert them to **TFRecords**. This implements the **neural network** model which can extend to more complicated models. It store **checkpoints** for fault tolerance and **inference**. You can learn to use **TensorBoard** as well and the example data could be found in [cancer-deep-learning-model](https://github.com/mark-watson/cancer-deep-learning-model).
 
-## Installation
+## Usage
 
-```
-pip install -r ./requirements.txt
-```
+### Prepare data 
 
-## Prepare Data
-
-The data format should be CSV and looks like this.
+The data format should be CSV and you can convert to TFRecords.
 
 ```
 3,7,7,4,4,9,4,8,1,1
@@ -21,60 +18,31 @@ The data format should be CSV and looks like this.
 9,5,8,1,2,3,2,1,5,1
 ```
 
-We can convert CSV file to TFRecords and print the content.
-
 ```
 cd ./data/
-./convert_cancer_to_tfrecords.py
-./print_cancer_tfrecords.py
+python convert_cancer_to_tfrecords.py
 ```
 
-## Develop program
+### Develop application
 
-We can use the `cancer_classifier.py` directly.
-
-```
-python ./cancer_classifier.py
-```
-
-And edit the model for testing.
+We can use the `cancer_classifier.py` to train or implement your model.
 
 ```
-# Hidden 1
-with tf.name_scope('hidden1'):
-    weights = tf.Variable(
-        tf.truncated_normal([input_units, hidden1_units],
-                            stddev=1.0 / math.sqrt(float(input_units))),
-        name='weights')
-    biases = tf.Variable(tf.zeros([hidden1_units]), name='biases')
-    hidden1 = tf.nn.relu(tf.matmul(batch_features, weights) + biases)
-
-# Hidden 2
-with tf.name_scope('hidden2'):
-    weights = tf.Variable(
-        tf.truncated_normal([hidden1_units, hidden2_units],
-                            stddev=1.0 / math.sqrt(float(hidden1_units))),
-        name='weights')
-    biases = tf.Variable(tf.zeros([hidden2_units]), name='biases')
-    hidden2 = tf.nn.relu(tf.matmul(hidden1, weights) + biases)
-
-# Linear
-with tf.name_scope('softmax_linear'):
-    weights = tf.Variable(
-        tf.truncated_normal([hidden2_units, output_units],
-                            stddev=1.0 / math.sqrt(float(hidden2_units))),
-        name='weights')
-    biases = tf.Variable(tf.zeros([NUM_CLASSES]), name='biases')
-
-    logits = tf.matmul(hidden2, weights) + biases
+python cancer_classifier.py
 ```
 
-## Use  TensorBoard
+If we want to run inference or prediction, just run with parameters.
 
-We can write summary and use TenorBoard for visualization.
+```
+python cancer_classifier.py --mode=inference
+```
+
+### Use TensorBoard
+
+The summary data is stored in [tensorboard](./tensorboard/) and we use TenorBoard for visualization.
 
 ```
 tensorboard --logdir ./tensorboard/
 ```
 
-Then go to `http://127.0.0.1:6006`.
+Then go to `http://127.0.0.1:6006` in the browser.

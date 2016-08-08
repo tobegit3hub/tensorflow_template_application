@@ -28,8 +28,15 @@ TRAIN_MODE = "train"
 TEST_MODE = "test"
 INFERENCE_MODE = "inference"
 
-feature_size = 9
+# Hyperparameter
+learning_rate = FLAGS.learning_rate
+epoch_number = FLAGS.epoch_number
+thread_number = FLAGS.thread_number
+batch_size = FLAGS.batch_size
+min_after_dequeue = FLAGS.min_after_dequeue
+capacity = thread_number * batch_size + min_after_dequeue
 
+feature_size = 9
 
 # Read serialized examples from filename queue
 def read_and_decode(filename_queue):
@@ -48,21 +55,7 @@ def read_and_decode(filename_queue):
 
     return label, features
 
-# Read the TFRecords file
-#current_path = os.getcwd()
-#input_file = os.path.join(current_path, "data/part.tfrecords")
-
-# Hyperparameter
-learning_rate = FLAGS.learning_rate
-epoch_number = FLAGS.epoch_number
-thread_number = FLAGS.thread_number
-batch_size = FLAGS.batch_size
-min_after_dequeue = FLAGS.min_after_dequeue
-capacity = thread_number * batch_size + min_after_dequeue
-
-# Batch get label and features
-#filename_queue = tf.train.string_input_producer([input_file],
-#                                                num_epochs=epoch_number)
+# Read TFRecords files
 filename_queue = tf.train.string_input_producer(
     tf.train.match_filenames_once("data/cancer.csv.tfrecords"),
     num_epochs=epoch_number)
@@ -84,8 +77,9 @@ validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
     num_threads=thread_number,
     capacity=capacity,
     min_after_dequeue=min_after_dequeue)
-'''
+
 # Define the model
+'''
 input_units = feature_size
 hidden1_units = FLAGS.hidden1
 hidden2_units = FLAGS.hidden2
@@ -126,7 +120,7 @@ batch_labels = tf.to_int64(batch_labels)
 global_step = tf.Variable(0, name='global_step', trainable=False)
 optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 
-# Linear
+# Define linear model
 weights2 = tf.Variable(tf.truncated_normal([feature_size, 2]))
 biases2 = tf.Variable(tf.truncated_normal([2]))
 logits2 = tf.matmul(batch_features, weights2) + biases2
@@ -142,7 +136,6 @@ train_op2 = optimizer.minimize(loss2, global_step=global_step)
 # Compute accuracy
 validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) +
                                  biases2)
-
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 correct_prediction = tf.equal(
     tf.argmax(validate_softmax, 1), validate_batch_labels)
@@ -157,14 +150,14 @@ indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
 concated = tf.concat(1, [indices, sparse_labels])
 outshape = tf.pack([derived_size, num_labels])
 new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
-
 _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax, new_validate_batch_labels)
 
-# Do inference
+# Define inference op
 inference_features = tf.placeholder("float", [None, 9])
 inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) +
                                   biases2)
 inference_op = tf.argmax(inference_softmax, 1)
+
 
 mode = FLAGS.mode
 saver = tf.train.Saver()
@@ -184,7 +177,6 @@ with tf.Session() as sess:
     sess.run(tf.initialize_local_variables())
 
     if mode == TRAIN_MODE:
-
         # Get coordinator and run queues to read data
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord, sess=sess)
@@ -192,18 +184,18 @@ with tf.Session() as sess:
         try:
             while not coord.should_stop():
                 # Run train op
-                _, loss_value, epoch = sess.run([train_op2, loss2, global_step
+                _, loss_value, step = sess.run([train_op2, loss2, global_step
                                                  ])
 
-                if epoch % steps_to_validate == 0:
+                if step % steps_to_validate == 0:
                     accuracy_value, auc_value, summary_value = sess.run([accuracy, auc_op, summary_op])
-                    print("Epoch: {}, loss: {}, accuracy: {}, auc: {}".format(
-                        epoch, loss_value, accuracy_value, auc_value))
+                    print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
+                        step, loss_value, accuracy_value, auc_value))
 
-                    writer.add_summary(summary_value, epoch)
+                    writer.add_summary(summary_value, step)
                     saver.save(sess,
                                "./checkpoint/checkpoint.ckpt",
-                               global_step=epoch)
+                               global_step=step)
 
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")

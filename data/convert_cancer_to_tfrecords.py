@@ -12,7 +12,7 @@ def convert_tfrecords(input_filename, output_filename):
     current_path = os.getcwd()
     input_file = os.path.join(current_path, input_filename)
     output_file = os.path.join(current_path, output_filename)
-    print("Start to convert {} into {}".format(input_file, output_file))
+    print("Start to convert {} to {}".format(input_file, output_file))
 
     writer = tf.python_io.TFRecordWriter(output_file)
 
@@ -33,6 +33,7 @@ def convert_tfrecords(input_filename, output_filename):
         writer.write(example.SerializeToString())
 
     writer.close()
+    print("Successfully convert {} to {}".format(input_file, output_file))
 
 current_path = os.getcwd()
 for file in os.listdir(current_path):
