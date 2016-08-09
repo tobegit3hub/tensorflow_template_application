@@ -17,16 +17,14 @@ flags.DEFINE_integer("min_after_dequeue", 100,
                      "indicates min_after_dequeue of shuffle queue")
 flags.DEFINE_string("output_dir", "./tensorboard/",
                     "indicates training output")
+flags.DEFINE_string("model", "deep", "Model to train, option model: deep, linear")
 flags.DEFINE_string("optimizer", "sgd", "optimizer to import")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
-flags.DEFINE_string("mode", "train", "Option mode: train, test, inference")
+flags.DEFINE_string("mode", "train", "Option mode: train, train_from_scratch, inference")
 
-TRAIN_MODE = "train"
-TEST_MODE = "test"
-INFERENCE_MODE = "inference"
 
 # Hyperparameter
 learning_rate = FLAGS.learning_rate
@@ -79,63 +77,43 @@ validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
     min_after_dequeue=min_after_dequeue)
 
 # Define the model
-'''
 input_units = feature_size
 hidden1_units = FLAGS.hidden1
 hidden2_units = FLAGS.hidden2
 output_units = 2
 
 # Hidden 1
-with tf.name_scope('hidden1'):
-    weights = tf.Variable(tf.truncated_normal([input_units, hidden1_units]), dtype=tf.float32, name='weights')
-    biases = tf.Variable(tf.truncated_normal([hidden1_units]), name='biases', dtype=tf.float32)
-    hidden1 = tf.nn.relu(tf.matmul(batch_features * 100, weights) + biases)
+weights1 = tf.Variable(tf.truncated_normal([input_units, hidden1_units]), dtype=tf.float32, name='weights')
+biases1 = tf.Variable(tf.truncated_normal([hidden1_units]), name='biases', dtype=tf.float32)
+hidden1 = tf.nn.relu(tf.matmul(batch_features, weights1) + biases1)
 
 # Hidden 2
-with tf.name_scope('hidden2'):
-    weights = tf.Variable(tf.truncated_normal([hidden1_units, hidden2_units]), dtype=tf.float32, name='weights')
-    biases = tf.Variable(tf.truncated_normal([hidden2_units]), name='biases', dtype=tf.float32)
-    hidden2 = tf.nn.relu(tf.matmul(hidden1, weights) + biases)
+weights2 = tf.Variable(tf.truncated_normal([hidden1_units, hidden2_units]), dtype=tf.float32, name='weights')
+biases2 = tf.Variable(tf.truncated_normal([hidden2_units]), name='biases', dtype=tf.float32)
+hidden2 = tf.nn.relu(tf.matmul(hidden1, weights2) + biases2)
 
 # Linear
-with tf.name_scope('softmax_linear'):
-    weights = tf.Variable(tf.truncated_normal([hidden2_units, output_units]), dtype=tf.float32, name='weights')
-    biases = tf.Variable(tf.truncated_normal([output_units]), name='biases', dtype=tf.float32)
-    logits = tf.matmul(hidden2, weights) + biases
+weights3 = tf.Variable(tf.truncated_normal([hidden2_units, output_units]), dtype=tf.float32, name='weights')
+biases3 = tf.Variable(tf.truncated_normal([output_units]), name='biases', dtype=tf.float32)
+logits = tf.matmul(hidden2, weights3) + biases3
 
-# Define loss and train op
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, batch_labels)
 loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
-#tf.scalar_summary(loss.op.name, loss)
 if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 else:
     optimizer = tf.train.MomentumOptimizer(learning_rate)
 global_step = tf.Variable(0, name='global_step', trainable=False)
 train_op = optimizer.minimize(loss, global_step=global_step)
-'''
-batch_labels = tf.to_int64(batch_labels)
-global_step = tf.Variable(0, name='global_step', trainable=False)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-
-# Define linear model
-weights2 = tf.Variable(tf.truncated_normal([feature_size, 2]))
-biases2 = tf.Variable(tf.truncated_normal([2]))
-logits2 = tf.matmul(batch_features, weights2) + biases2
-
-
-batch_labels = tf.cast(batch_labels, tf.int32)
-
-cross_entropy2 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits2,
-                                                                batch_labels)
-loss2 = tf.reduce_mean(cross_entropy2)
-train_op2 = optimizer.minimize(loss2, global_step=global_step)
 
 # Compute accuracy
-validate_softmax = tf.nn.softmax(tf.matmul(validate_batch_features, weights2) +
-                                 biases2)
+accuracy_hidden1 = tf.nn.relu(tf.matmul(validate_batch_features, weights1) + biases1)
+accuracy_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
+accuracy_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
+validate_softmax = tf.nn.softmax(accuracy_logits)
+
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 correct_prediction = tf.equal(
     tf.argmax(validate_softmax, 1), validate_batch_labels)
@@ -154,8 +132,10 @@ _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax, new_validate_batc
 
 # Define inference op
 inference_features = tf.placeholder("float", [None, 9])
-inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) +
-                                  biases2)
+inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) + biases1)
+inference_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
+inference_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
+inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
 
 
@@ -164,8 +144,9 @@ saver = tf.train.Saver()
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 
-tf.scalar_summary('loss', loss2)
+tf.scalar_summary('loss', loss)
 tf.scalar_summary('accuracy', accuracy)
+tf.scalar_summary('auc', auc_op)
 
 with tf.Session() as sess:
     # Write summary for TensorBoard
@@ -176,7 +157,14 @@ with tf.Session() as sess:
     sess.run(init_op)
     sess.run(tf.initialize_local_variables())
 
-    if mode == TRAIN_MODE:
+    if mode == "train" or "train_from_scratch":
+
+        if mode != "train_from_scratch":
+            ckpt = tf.train.get_checkpoint_state("./checkpoint/")
+            if ckpt and ckpt.model_checkpoint_path:
+                print("Continue training from the model {}".format(ckpt.model_checkpoint_path))
+                saver.restore(sess, ckpt.model_checkpoint_path)
+
         # Get coordinator and run queues to read data
         coord = tf.train.Coordinator()
         threads = tf.train.start_queue_runners(coord=coord, sess=sess)
@@ -184,8 +172,7 @@ with tf.Session() as sess:
         try:
             while not coord.should_stop():
                 # Run train op
-                _, loss_value, step = sess.run([train_op2, loss2, global_step
-                                                 ])
+                _, loss_value, step = sess.run([train_op, loss, global_step])
 
                 if step % steps_to_validate == 0:
                     accuracy_value, auc_value, summary_value = sess.run([accuracy, auc_op, summary_op])
@@ -205,7 +192,7 @@ with tf.Session() as sess:
         # Wait for threads to exit
         coord.join(threads)
 
-    elif mode == INFERENCE_MODE:
+    elif mode == "inference":
         print("Start to run inference")
 
         inference_data = np.array(
