@@ -133,11 +133,10 @@ _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax, new_validate_batc
 # Define inference op
 inference_features = tf.placeholder("float", [None, 9])
 inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) + biases1)
-inference_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
-inference_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
+inference_hidden2 = tf.nn.relu(tf.matmul(inference_hidden1, weights2) + biases2)
+inference_logits = tf.matmul(inference_hidden2, weights3) + biases3
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
-
 
 mode = FLAGS.mode
 saver = tf.train.Saver()
@@ -157,7 +156,7 @@ with tf.Session() as sess:
     sess.run(init_op)
     sess.run(tf.initialize_local_variables())
 
-    if mode == "train" or "train_from_scratch":
+    if mode == "train" or mode == "train_from_scratch":
 
         if mode != "train_from_scratch":
             ckpt = tf.train.get_checkpoint_state("./checkpoint/")
