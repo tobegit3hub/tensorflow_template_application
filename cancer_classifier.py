@@ -17,14 +17,15 @@ flags.DEFINE_integer("min_after_dequeue", 100,
                      "indicates min_after_dequeue of shuffle queue")
 flags.DEFINE_string("output_dir", "./tensorboard/",
                     "indicates training output")
-flags.DEFINE_string("model", "deep", "Model to train, option model: deep, linear")
+flags.DEFINE_string("model", "deep",
+                    "Model to train, option model: deep, linear")
 flags.DEFINE_string("optimizer", "sgd", "optimizer to import")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
-flags.DEFINE_string("mode", "train", "Option mode: train, train_from_scratch, inference")
-
+flags.DEFINE_string("mode", "train",
+                    "Option mode: train, train_from_scratch, inference")
 
 # Hyperparameter
 learning_rate = FLAGS.learning_rate
@@ -36,17 +37,17 @@ capacity = thread_number * batch_size + min_after_dequeue
 
 feature_size = 9
 
+
 # Read serialized examples from filename queue
 def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(serialized_example,
-                                       features={
-                                           "label": tf.FixedLenFeature(
-                                               [], tf.float32),
-                                           "features": tf.FixedLenFeature(
-                                               [feature_size], tf.float32),
-                                       })
+    features = tf.parse_single_example(
+        serialized_example,
+        features={
+            "label": tf.FixedLenFeature([], tf.float32),
+            "features": tf.FixedLenFeature([feature_size], tf.float32),
+        })
 
     label = features["label"]
     features = features["features"]
@@ -83,22 +84,41 @@ hidden2_units = FLAGS.hidden2
 output_units = 2
 
 # Hidden 1
-weights1 = tf.Variable(tf.truncated_normal([input_units, hidden1_units]), dtype=tf.float32, name='weights')
-biases1 = tf.Variable(tf.truncated_normal([hidden1_units]), name='biases', dtype=tf.float32)
+weights1 = tf.Variable(
+    tf.truncated_normal([input_units, hidden1_units]),
+    dtype=tf.float32,
+    name='weights')
+biases1 = tf.Variable(
+    tf.truncated_normal([hidden1_units]),
+    name='biases',
+    dtype=tf.float32)
 hidden1 = tf.nn.relu(tf.matmul(batch_features, weights1) + biases1)
 
 # Hidden 2
-weights2 = tf.Variable(tf.truncated_normal([hidden1_units, hidden2_units]), dtype=tf.float32, name='weights')
-biases2 = tf.Variable(tf.truncated_normal([hidden2_units]), name='biases', dtype=tf.float32)
+weights2 = tf.Variable(
+    tf.truncated_normal([hidden1_units, hidden2_units]),
+    dtype=tf.float32,
+    name='weights')
+biases2 = tf.Variable(
+    tf.truncated_normal([hidden2_units]),
+    name='biases',
+    dtype=tf.float32)
 hidden2 = tf.nn.relu(tf.matmul(hidden1, weights2) + biases2)
 
 # Linear
-weights3 = tf.Variable(tf.truncated_normal([hidden2_units, output_units]), dtype=tf.float32, name='weights')
-biases3 = tf.Variable(tf.truncated_normal([output_units]), name='biases', dtype=tf.float32)
+weights3 = tf.Variable(
+    tf.truncated_normal([hidden2_units, output_units]),
+    dtype=tf.float32,
+    name='weights')
+biases3 = tf.Variable(
+    tf.truncated_normal([output_units]),
+    name='biases',
+    dtype=tf.float32)
 logits = tf.matmul(hidden2, weights3) + biases3
 
 batch_labels = tf.to_int64(batch_labels)
-cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, batch_labels)
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
+                                                               batch_labels)
 loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 
 if FLAGS.optimizer == "sgd":
@@ -109,7 +129,8 @@ global_step = tf.Variable(0, name='global_step', trainable=False)
 train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
-accuracy_hidden1 = tf.nn.relu(tf.matmul(validate_batch_features, weights1) + biases1)
+accuracy_hidden1 = tf.nn.relu(tf.matmul(validate_batch_features, weights1) +
+                              biases1)
 accuracy_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
 accuracy_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
 validate_softmax = tf.nn.softmax(accuracy_logits)
@@ -128,12 +149,15 @@ indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
 concated = tf.concat(1, [indices, sparse_labels])
 outshape = tf.pack([derived_size, num_labels])
 new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
-_, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax, new_validate_batch_labels)
+_, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
+                                             new_validate_batch_labels)
 
 # Define inference op
 inference_features = tf.placeholder("float", [None, 9])
-inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) + biases1)
-inference_hidden2 = tf.nn.relu(tf.matmul(inference_hidden1, weights2) + biases2)
+inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) +
+                               biases1)
+inference_hidden2 = tf.nn.relu(tf.matmul(inference_hidden1, weights2) +
+                               biases2)
 inference_logits = tf.matmul(inference_hidden2, weights3) + biases3
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
@@ -161,7 +185,8 @@ with tf.Session() as sess:
         if mode != "train_from_scratch":
             ckpt = tf.train.get_checkpoint_state("./checkpoint/")
             if ckpt and ckpt.model_checkpoint_path:
-                print("Continue training from the model {}".format(ckpt.model_checkpoint_path))
+                print("Continue training from the model {}".format(
+                    ckpt.model_checkpoint_path))
                 saver.restore(sess, ckpt.model_checkpoint_path)
 
         # Get coordinator and run queues to read data
@@ -174,7 +199,8 @@ with tf.Session() as sess:
                 _, loss_value, step = sess.run([train_op, loss, global_step])
 
                 if step % steps_to_validate == 0:
-                    accuracy_value, auc_value, summary_value = sess.run([accuracy, auc_op, summary_op])
+                    accuracy_value, auc_value, summary_value = sess.run(
+                        [accuracy, auc_op, summary_op])
                     print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
                         step, loss_value, accuracy_value, auc_value))
 
@@ -195,11 +221,11 @@ with tf.Session() as sess:
         print("Start to run inference")
 
         inference_data = np.array(
-            [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1), (
-                2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
-             (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1), (
-                 1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1), (
-                     1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
+            [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
+             (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
+             (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
+             (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
+             (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
         correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
 
         ckpt = tf.train.get_checkpoint_state("./checkpoint/")
@@ -209,8 +235,8 @@ with tf.Session() as sess:
             inference_result = sess.run(
                 inference_op,
                 feed_dict={inference_features: inference_data})
-            print("Real data is: {}".format(correct_labels))
-            print("Inference data is {}".format(inference_result))
+            print("Real data: {}".format(correct_labels))
+            print("Inference data: {}".format(inference_result))
 
         else:
             print("No model found, exit")

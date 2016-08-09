@@ -34,7 +34,7 @@ python cancer_classifier.py
 You can also train the model from scrath and this takes time for better auc.
 
 ```
-python ./cancer_classifier.py --mode train_from_scratch
+python cancer_classifier.py --mode=train_from_scratch
 ```
 
 If we want to run inference or prediction, just run with parameters.
