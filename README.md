@@ -25,7 +25,7 @@ python convert_cancer_to_tfrecords.py
 
 ### Develop application
 
-We can use the `cancer_classifier.py` to train or implement your model.
+We can use the `cancer_classifier.py` to train or implement your model. Refer to [distributed](./distributed/) for distributed implementation.
 
 ```
 python cancer_classifier.py
