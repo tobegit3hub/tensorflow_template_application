@@ -206,7 +206,7 @@ def main(_):
             summary_op = tf.merge_all_summaries()
 
         sv = tf.train.Supervisor(is_chief=(FLAGS.task_index == 0),
-                                 logdir="/tmp/train_logs",
+                                 logdir="./checkpoint/",
                                  init_op=init_op,
                                  summary_op=summary_op,
                                  saver=saver,
