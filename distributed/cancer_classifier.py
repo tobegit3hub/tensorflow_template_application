@@ -34,16 +34,14 @@ tf.app.flags.DEFINE_string("worker_hosts", "",
 tf.app.flags.DEFINE_string("job_name", "", "One of 'ps', 'worker'")
 tf.app.flags.DEFINE_integer("task_index", 0, "Index of task within the job")
 
-# Hyperparameter
+# Hyperparameters
 learning_rate = FLAGS.learning_rate
 epoch_number = FLAGS.epoch_number
 thread_number = FLAGS.thread_number
 batch_size = FLAGS.batch_size
 min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
-
-feature_size = 9
-
+FEATURE_SIZE = 9
 
 # Read serialized examples from filename queue
 def read_and_decode(filename_queue):
@@ -53,7 +51,7 @@ def read_and_decode(filename_queue):
         serialized_example,
         features={
             "label": tf.FixedLenFeature([], tf.float32),
-            "features": tf.FixedLenFeature([feature_size], tf.float32),
+            "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
         })
 
     label = features["label"]
@@ -104,7 +102,7 @@ def main(_):
                 min_after_dequeue=min_after_dequeue)
 
             # Define the model
-            input_units = feature_size
+            input_units = FEATURE_SIZE
             hidden1_units = FLAGS.hidden1
             hidden2_units = FLAGS.hidden2
             output_units = 2
@@ -142,14 +140,10 @@ def main(_):
                 dtype=tf.float32)
             logits = tf.matmul(hidden2, weights3) + biases3
 
-            #import ipdb;ipdb.set_trace()
-
             batch_labels = tf.to_int64(batch_labels)
-
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
                 logits, batch_labels)
             loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
-
             if FLAGS.optimizer == "sgd":
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate)
             else:
@@ -193,7 +187,6 @@ def main(_):
             inference_softmax = tf.nn.softmax(inference_logits)
             inference_op = tf.argmax(inference_softmax, 1)
 
-            mode = FLAGS.mode
             saver = tf.train.Saver()
             steps_to_validate = FLAGS.steps_to_validate
             init_op = tf.initialize_all_variables()
@@ -213,10 +206,8 @@ def main(_):
                                  save_model_secs=600)
 
         with sv.managed_session(server.target) as sess:
-            #sess.run(tf.initialize_local_variables())
-
             step = 0
-            while not sv.should_stop() and step < 10000:
+            while not sv.should_stop() and step < 1000000:
 
                 # Get coordinator and run queues to read data
                 coord = tf.train.Coordinator()
@@ -243,7 +234,6 @@ def main(_):
 
                 # Wait for threads to exit
                 coord.join(threads)
-
 
 if __name__ == "__main__":
     tf.app.run()
