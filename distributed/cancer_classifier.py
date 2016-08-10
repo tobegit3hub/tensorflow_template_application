@@ -203,7 +203,7 @@ def main(_):
                                  summary_op=summary_op,
                                  saver=saver,
                                  global_step=global_step,
-                                 save_model_secs=600)
+                                 save_model_secs=60)
 
         with sv.managed_session(server.target) as sess:
             step = 0
