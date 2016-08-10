@@ -34,8 +34,7 @@ thread_number = FLAGS.thread_number
 batch_size = FLAGS.batch_size
 min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
-
-feature_size = 9
+FEATURE_SIZE = 9
 
 
 # Read serialized examples from filename queue
@@ -46,15 +45,13 @@ def read_and_decode(filename_queue):
         serialized_example,
         features={
             "label": tf.FixedLenFeature([], tf.float32),
-            "features": tf.FixedLenFeature([feature_size], tf.float32),
+            "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
         })
-
     label = features["label"]
     features = features["features"]
-
     return label, features
 
-# Read TFRecords files
+# Read TFRecords files for training
 filename_queue = tf.train.string_input_producer(
     tf.train.match_filenames_once("data/cancer.csv.tfrecords"),
     num_epochs=epoch_number)
@@ -66,6 +63,7 @@ batch_labels, batch_features = tf.train.shuffle_batch(
     capacity=capacity,
     min_after_dequeue=min_after_dequeue)
 
+# Read TFRecords file for validatioin
 validate_filename_queue = tf.train.string_input_producer(
     tf.train.match_filenames_once("data/cancer_test.csv.tfrecords"),
     num_epochs=epoch_number)
@@ -78,7 +76,7 @@ validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
     min_after_dequeue=min_after_dequeue)
 
 # Define the model
-input_units = feature_size
+input_units = FEATURE_SIZE
 hidden1_units = FLAGS.hidden1
 hidden2_units = FLAGS.hidden2
 output_units = 2
@@ -120,7 +118,6 @@ batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
 loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
-
 if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 else:
@@ -134,7 +131,6 @@ accuracy_hidden1 = tf.nn.relu(tf.matmul(validate_batch_features, weights1) +
 accuracy_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
 accuracy_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
 validate_softmax = tf.nn.softmax(accuracy_logits)
-
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 correct_prediction = tf.equal(
     tf.argmax(validate_softmax, 1), validate_batch_labels)
@@ -162,26 +158,24 @@ inference_logits = tf.matmul(inference_hidden2, weights3) + biases3
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
 
+# Initialize saver and summary
 mode = FLAGS.mode
 saver = tf.train.Saver()
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
-
 tf.scalar_summary('loss', loss)
 tf.scalar_summary('accuracy', accuracy)
 tf.scalar_summary('auc', auc_op)
 
+# Create session to run graph
 with tf.Session() as sess:
-    # Write summary for TensorBoard
     summary_op = tf.merge_all_summaries()
     output_dir = FLAGS.output_dir
     writer = tf.train.SummaryWriter(output_dir, sess.graph)
-
     sess.run(init_op)
     sess.run(tf.initialize_local_variables())
 
     if mode == "train" or mode == "train_from_scratch":
-
         if mode != "train_from_scratch":
             ckpt = tf.train.get_checkpoint_state("./checkpoint/")
             if ckpt and ckpt.model_checkpoint_path:
@@ -195,20 +189,16 @@ with tf.Session() as sess:
 
         try:
             while not coord.should_stop():
-                # Run train op
                 _, loss_value, step = sess.run([train_op, loss, global_step])
-
                 if step % steps_to_validate == 0:
                     accuracy_value, auc_value, summary_value = sess.run(
                         [accuracy, auc_op, summary_op])
                     print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
                         step, loss_value, accuracy_value, auc_value))
-
                     writer.add_summary(summary_value, step)
                     saver.save(sess,
                                "./checkpoint/checkpoint.ckpt",
                                global_step=step)
-
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")
         finally:
@@ -228,6 +218,7 @@ with tf.Session() as sess:
              (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
         correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
 
+        # Restore wights from model file
         ckpt = tf.train.get_checkpoint_state("./checkpoint/")
         if ckpt and ckpt.model_checkpoint_path:
             print("Use the model {}".format(ckpt.model_checkpoint_path))
