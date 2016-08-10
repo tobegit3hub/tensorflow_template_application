@@ -169,8 +169,12 @@ tf.scalar_summary('auc', auc_op)
 saver = tf.train.Saver()
 keys_placeholder = tf.placeholder("float")
 keys = tf.identity(keys_placeholder)
-tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name, 'features': inference_features.name }))
-tf.add_to_collection("outputs", json.dumps({'key': keys.name, 'softmax': inference_softmax.name, 'prediction': inference_op.name}))
+tf.add_to_collection("inputs", json.dumps(
+    {'key': keys_placeholder.name,
+     'features': inference_features.name}))
+tf.add_to_collection("outputs", json.dumps({'key': keys.name,
+                                            'softmax': inference_softmax.name,
+                                            'prediction': inference_op.name}))
 
 # Create session to run graph
 with tf.Session() as sess:
