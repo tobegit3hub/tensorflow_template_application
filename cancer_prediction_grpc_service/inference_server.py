@@ -18,44 +18,36 @@ class InferenceService(inference_pb2.InferenceServiceServicer):
     def __init__(self):
 
         #saver = tf.train.Saver()
-        with tf.Session() as sess:
-            # Restore wights from model file
-            ckpt = tf.train.get_checkpoint_state("../checkpoint/")
-            if ckpt and ckpt.model_checkpoint_path:
-                print("Use the model {}".format(ckpt.model_checkpoint_path))
-                saver = tf.train.import_meta_graph(
-                    "../checkpoint/checkpoint.ckpt-40.meta")
-                saver.restore(sess, ckpt.model_checkpoint_path)
+        self.sess = tf.Session()
+        # Restore wights from model file
+        ckpt = tf.train.get_checkpoint_state("../checkpoint/")
+        if ckpt and ckpt.model_checkpoint_path:
+            print("Use the model {}".format(ckpt.model_checkpoint_path))
+            saver = tf.train.import_meta_graph(
+                "../checkpoint/checkpoint.ckpt-40.meta")
+            saver.restore(self.sess, ckpt.model_checkpoint_path)
 
-                self.inputs = json.loads(tf.get_collection('inputs')[0])
-                self.outputs = json.loads(tf.get_collection('outputs')[0])
+            self.inputs = json.loads(tf.get_collection('inputs')[0])
+            self.outputs = json.loads(tf.get_collection('outputs')[0])
 
-            else:
-                print("No model found, exit")
-                exit()
+        else:
+            print("No model found, exit")
+            exit()
 
     def DoInference(self, request, context):
-        inference_data = np.array(
-            [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
-             (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
-             (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
-             (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
-             (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
-        correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
-
-        request_example = json.dumps({"key": 1, "features": inference_data})
+        # foo_numpy_array = np.array([(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1)])
+        # request_example = json.dumps({"key": 1, "features": foo_numpy_array.tolist()})
+        request_example = json.loads(request.data)
+        request_example["features"] = np.array(request_example["features"])
 
         feed_dict = {}
-        for key in inputs.keys():
-            feed_dict[inputs[key]] = request_example[key]
+        for key in self.inputs.keys():
+            feed_dict[self.inputs[key]] = request_example[key]
 
-        inference_result = sess.run(outputs, feed_dict=feed_dict)
+        inference_result = self.sess.run(self.outputs, feed_dict=feed_dict)
 
-        print("Real data: {}".format(correct_labels))
-        print("Inference data: {}".format(inference_result))
-
-        return inference_pb2.InferenceResponse(message='Hello, %s!' %
-                                               request.name)
+        return inference_pb2.InferenceResponse(data='Hello, %s!' %
+                                               inference_result)
 
 
 def serve():

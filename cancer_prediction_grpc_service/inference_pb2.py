@@ -20,50 +20,13 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='inference.proto',
   package='tensorflow.serving',
   syntax='proto3',
-  serialized_pb=_b('\n\x0finference.proto\x12\x12tensorflow.serving\x1a&tensorflow/core/framework/tensor.proto\"\xbc\x01\n\x10InferenceRequest\x12\r\n\x05model\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\x05\x12@\n\x06inputs\x18\x03 \x03(\x0b\x32\x30.tensorflow.serving.InferenceRequest.InputsEntry\x1a\x46\n\x0bInputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.tensorflow.TensorProto:\x02\x38\x01\"\xa1\x01\n\x11InferenceResponse\x12\x43\n\x07outputs\x18\x01 \x03(\x0b\x32\x32.tensorflow.serving.InferenceResponse.OutputsEntry\x1aG\n\x0cOutputsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12&\n\x05value\x18\x02 \x01(\x0b\x32\x17.tensorflow.TensorProto:\x02\x38\x01\x32l\n\x10InferenceService\x12X\n\tInference\x12$.tensorflow.serving.InferenceRequest\x1a%.tensorflow.serving.InferenceResponseb\x06proto3')
+  serialized_pb=_b('\n\x0finference.proto\x12\x12tensorflow.serving\x1a&tensorflow/core/framework/tensor.proto\" \n\x10InferenceRequest\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\t\"!\n\x11InferenceResponse\x12\x0c\n\x04\x64\x61ta\x18\x01 \x01(\t2n\n\x10InferenceService\x12Z\n\x0b\x44oInference\x12$.tensorflow.serving.InferenceRequest\x1a%.tensorflow.serving.InferenceResponseb\x06proto3')
   ,
   dependencies=[tensorflow_dot_core_dot_framework_dot_tensor__pb2.DESCRIPTOR,])
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
 
-
-_INFERENCEREQUEST_INPUTSENTRY = _descriptor.Descriptor(
-  name='InputsEntry',
-  full_name='tensorflow.serving.InferenceRequest.InputsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='tensorflow.serving.InferenceRequest.InputsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='tensorflow.serving.InferenceRequest.InputsEntry.value', index=1,
-      number=2, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-  ],
-  extensions=[
-  ],
-  nested_types=[],
-  enum_types=[
-  ],
-  options=_descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001')),
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=198,
-  serialized_end=268,
-)
 
 _INFERENCEREQUEST = _descriptor.Descriptor(
   name='InferenceRequest',
@@ -73,61 +36,9 @@ _INFERENCEREQUEST = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='model', full_name='tensorflow.serving.InferenceRequest.model', index=0,
+      name='data', full_name='tensorflow.serving.InferenceRequest.data', index=0,
       number=1, type=9, cpp_type=9, label=1,
       has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='version', full_name='tensorflow.serving.InferenceRequest.version', index=1,
-      number=2, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='inputs', full_name='tensorflow.serving.InferenceRequest.inputs', index=2,
-      number=3, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-  ],
-  extensions=[
-  ],
-  nested_types=[_INFERENCEREQUEST_INPUTSENTRY, ],
-  enum_types=[
-  ],
-  options=None,
-  is_extendable=False,
-  syntax='proto3',
-  extension_ranges=[],
-  oneofs=[
-  ],
-  serialized_start=80,
-  serialized_end=268,
-)
-
-
-_INFERENCERESPONSE_OUTPUTSENTRY = _descriptor.Descriptor(
-  name='OutputsEntry',
-  full_name='tensorflow.serving.InferenceResponse.OutputsEntry',
-  filename=None,
-  file=DESCRIPTOR,
-  containing_type=None,
-  fields=[
-    _descriptor.FieldDescriptor(
-      name='key', full_name='tensorflow.serving.InferenceResponse.OutputsEntry.key', index=0,
-      number=1, type=9, cpp_type=9, label=1,
-      has_default_value=False, default_value=_b("").decode('utf-8'),
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      options=None),
-    _descriptor.FieldDescriptor(
-      name='value', full_name='tensorflow.serving.InferenceResponse.OutputsEntry.value', index=1,
-      number=2, type=11, cpp_type=10, label=1,
-      has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -137,15 +48,16 @@ _INFERENCERESPONSE_OUTPUTSENTRY = _descriptor.Descriptor(
   nested_types=[],
   enum_types=[
   ],
-  options=_descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001')),
+  options=None,
   is_extendable=False,
   syntax='proto3',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=361,
-  serialized_end=432,
+  serialized_start=79,
+  serialized_end=111,
 )
+
 
 _INFERENCERESPONSE = _descriptor.Descriptor(
   name='InferenceResponse',
@@ -155,16 +67,16 @@ _INFERENCERESPONSE = _descriptor.Descriptor(
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='outputs', full_name='tensorflow.serving.InferenceResponse.outputs', index=0,
-      number=1, type=11, cpp_type=10, label=3,
-      has_default_value=False, default_value=[],
+      name='data', full_name='tensorflow.serving.InferenceResponse.data', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
   ],
   extensions=[
   ],
-  nested_types=[_INFERENCERESPONSE_OUTPUTSENTRY, ],
+  nested_types=[],
   enum_types=[
   ],
   options=None,
@@ -173,54 +85,28 @@ _INFERENCERESPONSE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=271,
-  serialized_end=432,
+  serialized_start=113,
+  serialized_end=146,
 )
 
-_INFERENCEREQUEST_INPUTSENTRY.fields_by_name['value'].message_type = tensorflow_dot_core_dot_framework_dot_tensor__pb2._TENSORPROTO
-_INFERENCEREQUEST_INPUTSENTRY.containing_type = _INFERENCEREQUEST
-_INFERENCEREQUEST.fields_by_name['inputs'].message_type = _INFERENCEREQUEST_INPUTSENTRY
-_INFERENCERESPONSE_OUTPUTSENTRY.fields_by_name['value'].message_type = tensorflow_dot_core_dot_framework_dot_tensor__pb2._TENSORPROTO
-_INFERENCERESPONSE_OUTPUTSENTRY.containing_type = _INFERENCERESPONSE
-_INFERENCERESPONSE.fields_by_name['outputs'].message_type = _INFERENCERESPONSE_OUTPUTSENTRY
 DESCRIPTOR.message_types_by_name['InferenceRequest'] = _INFERENCEREQUEST
 DESCRIPTOR.message_types_by_name['InferenceResponse'] = _INFERENCERESPONSE
 
 InferenceRequest = _reflection.GeneratedProtocolMessageType('InferenceRequest', (_message.Message,), dict(
-
-  InputsEntry = _reflection.GeneratedProtocolMessageType('InputsEntry', (_message.Message,), dict(
-    DESCRIPTOR = _INFERENCEREQUEST_INPUTSENTRY,
-    __module__ = 'inference_pb2'
-    # @@protoc_insertion_point(class_scope:tensorflow.serving.InferenceRequest.InputsEntry)
-    ))
-  ,
   DESCRIPTOR = _INFERENCEREQUEST,
   __module__ = 'inference_pb2'
   # @@protoc_insertion_point(class_scope:tensorflow.serving.InferenceRequest)
   ))
 _sym_db.RegisterMessage(InferenceRequest)
-_sym_db.RegisterMessage(InferenceRequest.InputsEntry)
 
 InferenceResponse = _reflection.GeneratedProtocolMessageType('InferenceResponse', (_message.Message,), dict(
-
-  OutputsEntry = _reflection.GeneratedProtocolMessageType('OutputsEntry', (_message.Message,), dict(
-    DESCRIPTOR = _INFERENCERESPONSE_OUTPUTSENTRY,
-    __module__ = 'inference_pb2'
-    # @@protoc_insertion_point(class_scope:tensorflow.serving.InferenceResponse.OutputsEntry)
-    ))
-  ,
   DESCRIPTOR = _INFERENCERESPONSE,
   __module__ = 'inference_pb2'
   # @@protoc_insertion_point(class_scope:tensorflow.serving.InferenceResponse)
   ))
 _sym_db.RegisterMessage(InferenceResponse)
-_sym_db.RegisterMessage(InferenceResponse.OutputsEntry)
 
 
-_INFERENCEREQUEST_INPUTSENTRY.has_options = True
-_INFERENCEREQUEST_INPUTSENTRY._options = _descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001'))
-_INFERENCERESPONSE_OUTPUTSENTRY.has_options = True
-_INFERENCERESPONSE_OUTPUTSENTRY._options = _descriptor._ParseOptions(descriptor_pb2.MessageOptions(), _b('8\001'))
 import grpc
 from grpc.beta import implementations as beta_implementations
 from grpc.beta import interfaces as beta_interfaces
@@ -236,8 +122,8 @@ class InferenceServiceStub(object):
     Args:
       channel: A grpc.Channel.
     """
-    self.Inference = channel.unary_unary(
-        '/tensorflow.serving.InferenceService/Inference',
+    self.DoInference = channel.unary_unary(
+        '/tensorflow.serving.InferenceService/DoInference',
         request_serializer=InferenceRequest.SerializeToString,
         response_deserializer=InferenceResponse.FromString,
         )
@@ -245,7 +131,7 @@ class InferenceServiceStub(object):
 
 class InferenceServiceServicer(object):
 
-  def Inference(self, request, context):
+  def DoInference(self, request, context):
     context.set_code(grpc.StatusCode.UNIMPLEMENTED)
     context.set_details('Method not implemented!')
     raise NotImplementedError('Method not implemented!')
@@ -253,8 +139,8 @@ class InferenceServiceServicer(object):
 
 def add_InferenceServiceServicer_to_server(servicer, server):
   rpc_method_handlers = {
-      'Inference': grpc.unary_unary_rpc_method_handler(
-          servicer.Inference,
+      'DoInference': grpc.unary_unary_rpc_method_handler(
+          servicer.DoInference,
           request_deserializer=InferenceRequest.FromString,
           response_serializer=InferenceResponse.SerializeToString,
       ),
@@ -265,25 +151,25 @@ def add_InferenceServiceServicer_to_server(servicer, server):
 
 
 class BetaInferenceServiceServicer(object):
-  def Inference(self, request, context):
+  def DoInference(self, request, context):
     context.code(beta_interfaces.StatusCode.UNIMPLEMENTED)
 
 
 class BetaInferenceServiceStub(object):
-  def Inference(self, request, timeout, metadata=None, with_call=False, protocol_options=None):
+  def DoInference(self, request, timeout, metadata=None, with_call=False, protocol_options=None):
     raise NotImplementedError()
-  Inference.future = None
+  DoInference.future = None
 
 
 def beta_create_InferenceService_server(servicer, pool=None, pool_size=None, default_timeout=None, maximum_timeout=None):
   request_deserializers = {
-    ('tensorflow.serving.InferenceService', 'Inference'): InferenceRequest.FromString,
+    ('tensorflow.serving.InferenceService', 'DoInference'): InferenceRequest.FromString,
   }
   response_serializers = {
-    ('tensorflow.serving.InferenceService', 'Inference'): InferenceResponse.SerializeToString,
+    ('tensorflow.serving.InferenceService', 'DoInference'): InferenceResponse.SerializeToString,
   }
   method_implementations = {
-    ('tensorflow.serving.InferenceService', 'Inference'): face_utilities.unary_unary_inline(servicer.Inference),
+    ('tensorflow.serving.InferenceService', 'DoInference'): face_utilities.unary_unary_inline(servicer.DoInference),
   }
   server_options = beta_implementations.server_options(request_deserializers=request_deserializers, response_serializers=response_serializers, thread_pool=pool, thread_pool_size=pool_size, default_timeout=default_timeout, maximum_timeout=maximum_timeout)
   return beta_implementations.server(method_implementations, options=server_options)
@@ -291,13 +177,13 @@ def beta_create_InferenceService_server(servicer, pool=None, pool_size=None, def
 
 def beta_create_InferenceService_stub(channel, host=None, metadata_transformer=None, pool=None, pool_size=None):
   request_serializers = {
-    ('tensorflow.serving.InferenceService', 'Inference'): InferenceRequest.SerializeToString,
+    ('tensorflow.serving.InferenceService', 'DoInference'): InferenceRequest.SerializeToString,
   }
   response_deserializers = {
-    ('tensorflow.serving.InferenceService', 'Inference'): InferenceResponse.FromString,
+    ('tensorflow.serving.InferenceService', 'DoInference'): InferenceResponse.FromString,
   }
   cardinalities = {
-    'Inference': cardinality.Cardinality.UNARY_UNARY,
+    'DoInference': cardinality.Cardinality.UNARY_UNARY,
   }
   stub_options = beta_implementations.stub_options(host=host, metadata_transformer=metadata_transformer, request_serializers=request_serializers, response_deserializers=response_deserializers, thread_pool=pool, thread_pool_size=pool_size)
   return beta_implementations.dynamic_stub(channel, 'tensorflow.serving.InferenceService', cardinalities, options=stub_options)

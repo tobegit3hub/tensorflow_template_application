@@ -7,15 +7,13 @@ import "tensorflow/core/framework/tensor.proto";
 package tensorflow.serving;
 
 message InferenceRequest {
-  //string model = 1;
-  //int32 version = 2;
-  //map<string, TensorProto> inputs = 3;
-  string name = 1;
+  //map<string, TensorProto> inputs = 1;
+  string data = 1;
 }
 
 message InferenceResponse {
   //map<string, TensorProto> outputs = 1;
-  string message = 1;
+  string data = 1;
 };
 
 service InferenceService {
