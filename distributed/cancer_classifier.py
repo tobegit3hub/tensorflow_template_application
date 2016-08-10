@@ -49,13 +49,12 @@ feature_size = 9
 def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(serialized_example,
-                                       features={
-                                           "label": tf.FixedLenFeature(
-                                               [], tf.float32),
-                                           "features": tf.FixedLenFeature(
-                                               [feature_size], tf.float32),
-                                       })
+    features = tf.parse_single_example(
+        serialized_example,
+        features={
+            "label": tf.FixedLenFeature([], tf.float32),
+            "features": tf.FixedLenFeature([feature_size], tf.float32),
+        })
 
     label = features["label"]
     features = features["features"]
