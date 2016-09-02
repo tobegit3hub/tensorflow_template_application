@@ -43,6 +43,7 @@ min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
 FEATURE_SIZE = 9
 
+
 # Read serialized examples from filename queue
 def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
@@ -234,6 +235,7 @@ def main(_):
 
                 # Wait for threads to exit
                 coord.join(threads)
+
 
 if __name__ == "__main__":
     tf.app.run()

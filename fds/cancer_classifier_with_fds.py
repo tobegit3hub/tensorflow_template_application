@@ -57,9 +57,10 @@ def read_and_decode(filename_queue):
 # Read TFRecords files
 ID = "xxx"
 SECRET = "xxx"
-ENDPOINT="cnbj1-fds.api.xiaomi.net"
+ENDPOINT = "cnbj1-fds.api.xiaomi.net"
 BUCKET = "tobe-tensorflow"
-filename  = "fds://%s:%s@%s/%s/cancer.csv.tfrecords" % (ID, SECRET, ENDPOINT, BUCKET)
+filename = "fds://%s:%s@%s/%s/cancer.csv.tfrecords" % (ID, SECRET, ENDPOINT,
+                                                       BUCKET)
 
 filename_queue = tf.train.string_input_producer(
     #tf.train.match_filenames_once("data/cancer.csv.tfrecords"),

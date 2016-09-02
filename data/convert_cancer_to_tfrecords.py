@@ -8,6 +8,7 @@ import os
 # 6,2,1,1,1,1,7,1,1,0
 # 2,5,3,3,6,7,7,5,1,1
 
+
 def convert_tfrecords(input_filename, output_filename):
     current_path = os.getcwd()
     input_file = os.path.join(current_path, input_filename)
@@ -35,7 +36,9 @@ def convert_tfrecords(input_filename, output_filename):
     writer.close()
     print("Successfully convert {} to {}".format(input_file, output_file))
 
+
 current_path = os.getcwd()
 for file in os.listdir(current_path):
-    if file.startswith("cancer") and file.endswith(".csv") and not file.endswith(".tfrecords"):
+    if file.startswith("cancer") and file.endswith(
+            ".csv") and not file.endswith(".tfrecords"):
         convert_tfrecords(file, file + ".tfrecords")

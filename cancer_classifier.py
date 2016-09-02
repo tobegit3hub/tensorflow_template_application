@@ -150,7 +150,7 @@ _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
                                              new_validate_batch_labels)
 
 # Define inference op
-inference_features = tf.placeholder("float", [None, 9])
+inference_features = tf.placeholder("float", [None, FEATURE_SIZE])
 inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) +
                                biases1)
 inference_hidden2 = tf.nn.relu(tf.matmul(inference_hidden1, weights2) +
@@ -169,9 +169,9 @@ tf.scalar_summary('auc', auc_op)
 saver = tf.train.Saver()
 keys_placeholder = tf.placeholder("float")
 keys = tf.identity(keys_placeholder)
-tf.add_to_collection("inputs", json.dumps(
-    {'key': keys_placeholder.name,
-     'features': inference_features.name}))
+tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name,
+                                           'features':
+                                           inference_features.name}))
 tf.add_to_collection("outputs", json.dumps({'key': keys.name,
                                             'softmax': inference_softmax.name,
                                             'prediction': inference_op.name}))
