@@ -84,51 +84,47 @@ hidden3_units = 10
 hidden4_units = 30
 output_units = 2
 
-def full_connect_relu(inputs, weights_shape, biases_shape):
-    weights = tf.get_variable("weights", weights_shape, initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases", biases_shape, initializer=tf.random_normal_initializer())
-    return tf.nn.relu(tf.matmul(inputs, weights) + biases)
 
 def full_connect(inputs, weights_shape, biases_shape):
-    weights = tf.get_variable("weights", weights_shape, initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases", biases_shape, initializer=tf.random_normal_initializer())
+    weights = tf.get_variable("weights",
+                              weights_shape,
+                              initializer=tf.random_normal_initializer())
+    biases = tf.get_variable("biases",
+                             biases_shape,
+                             initializer=tf.random_normal_initializer())
     return tf.matmul(inputs, weights) + biases
 
-def inference():
+
+def full_connect_relu(inputs, weights_shape, biases_shape):
+    return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
+
+
+def inference(inputs):
+    '''
+    Shape of inputs should be [batch_size, input_units], return shape [batch_size, output_units]
+    '''
     with tf.variable_scope("layer1"):
-        layer = full_connect_relu(batch_features, [input_units, hidden1_units], [hidden1_units])
+        layer = full_connect_relu(inputs, [input_units, hidden1_units],
+                                  [hidden1_units])
     with tf.variable_scope("layer2"):
-        layer = full_connect_relu(layer, [hidden1_units, hidden2_units], [hidden2_units])
+        layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
+                                  [hidden2_units])
     with tf.variable_scope("layer3"):
-        layer = full_connect_relu(layer, [hidden2_units, hidden3_units], [hidden3_units])
+        layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
+                                  [hidden3_units])
     with tf.variable_scope("layer4"):
-        layer = full_connect_relu(layer, [hidden3_units, hidden4_units], [hidden4_units])
+        layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
+                                  [hidden4_units])
     with tf.variable_scope("outpu"):
-        layer = full_connect(layer, [hidden4_units, output_units], [output_units])
+        layer = full_connect(layer, [hidden4_units, output_units],
+                             [output_units])
     return layer
 
-'''
-# Hidden 1
-weights1 = tf.Variable(tf.truncated_normal([input_units, hidden1_units]), dtype=tf.float32, name='weights')
-biases1 = tf.Variable(tf.truncated_normal([hidden1_units]), name='biases', dtype=tf.float32)
-hidden1 = tf.nn.relu(tf.matmul(batch_features, weights1) + biases1)
 
-# Hidden 2
-weights2 = tf.Variable(tf.truncated_normal([hidden1_units, hidden2_units]), dtype=tf.float32, name='weights')
-biases2 = tf.Variable(tf.truncated_normal([hidden2_units]), name='biases', dtype=tf.float32)
-hidden2 = tf.nn.relu(tf.matmul(hidden1, weights2) + biases2)
-
-# Linear
-weights3 = tf.Variable(tf.truncated_normal([hidden2_units, output_units]), dtype=tf.float32, name='weights')
-biases3 = tf.Variable(tf.truncated_normal([output_units]), name='biases', dtype=tf.float32)
-logits = tf.matmul(hidden2, weights3) + biases3
-'''
-
-
-logits = inference()
-
+logits = inference(batch_features)
 batch_labels = tf.to_int64(batch_labels)
-cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits, batch_labels)
+cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
+                                                               batch_labels)
 loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
 if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
@@ -137,13 +133,9 @@ else:
 global_step = tf.Variable(0, name='global_step', trainable=False)
 train_op = optimizer.minimize(loss, global_step=global_step)
 
-
-'''
 # Compute accuracy
-accuracy_hidden1 = tf.nn.relu(tf.matmul(validate_batch_features, weights1) +
-                              biases1)
-accuracy_hidden2 = tf.nn.relu(tf.matmul(accuracy_hidden1, weights2) + biases2)
-accuracy_logits = tf.matmul(accuracy_hidden2, weights3) + biases3
+tf.get_variable_scope().reuse_variables()
+accuracy_logits = inference(validate_batch_features)
 validate_softmax = tf.nn.softmax(accuracy_logits)
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 correct_prediction = tf.equal(
@@ -164,35 +156,26 @@ _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
 
 # Define inference op
 inference_features = tf.placeholder("float", [None, FEATURE_SIZE])
-inference_hidden1 = tf.nn.relu(tf.matmul(inference_features, weights1) +
-                               biases1)
-inference_hidden2 = tf.nn.relu(tf.matmul(inference_hidden1, weights2) +
-                               biases2)
-inference_logits = tf.matmul(inference_hidden2, weights3) + biases3
+inference_logits = inference(inference_features)
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
-'''
 
 # Initialize saver and summary
 mode = FLAGS.mode
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 tf.scalar_summary('loss', loss)
-'''
 tf.scalar_summary('accuracy', accuracy)
 tf.scalar_summary('auc', auc_op)
-'''
 saver = tf.train.Saver()
 keys_placeholder = tf.placeholder("float")
 keys = tf.identity(keys_placeholder)
-'''
 tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name,
                                            'features':
                                            inference_features.name}))
 tf.add_to_collection("outputs", json.dumps({'key': keys.name,
                                             'softmax': inference_softmax.name,
                                             'prediction': inference_op.name}))
-'''
 
 # Create session to run graph
 with tf.Session() as sess:
@@ -218,8 +201,6 @@ with tf.Session() as sess:
             while not coord.should_stop():
                 _, loss_value, step = sess.run([train_op, loss, global_step])
                 if step % steps_to_validate == 0:
-                    print("Step: {}, loss: {}".format(step, loss_value))
-                    '''
                     accuracy_value, auc_value, summary_value = sess.run(
                         [accuracy, auc_op, summary_op])
                     print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
@@ -228,7 +209,6 @@ with tf.Session() as sess:
                     saver.save(sess,
                                "./checkpoint/checkpoint.ckpt",
                                global_step=step)
-                    '''
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")
         finally:
