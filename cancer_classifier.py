@@ -20,7 +20,7 @@ flags.DEFINE_string("output_dir", "./tensorboard/",
                     "indicates training output")
 flags.DEFINE_string("model", "deep",
                     "Model to train, option model: deep, linear")
-flags.DEFINE_string("optimizer", "sgd", "optimizer to import")
+flags.DEFINE_string("optimizer", "sgd", "optimizer to train")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_to_validate', 10,
@@ -126,10 +126,29 @@ batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
 loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
+
 if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+elif FLAGS.optimizer == "momentum":
+    # optimizer = tf.train.MomentumOptimizer(learning_rate)
+    print("Not support optimizer: {} yet, exit now".format(FLAGS.optimizer))
+    exit(1)
+elif FLAGS.optimizer == "adadelta":
+    optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+elif FLAGS.optimizer == "adagrad":
+    optimizer = tf.train.AdagradOptimizer(learning_rate)
+elif FLAGS.optimizer == "adagradda":
+    optimizer = tf.train.AdagradDAOptimizer(learning_rate)
+elif FLAGS.optimizer == "adam":
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+elif FLAGS.optimizer == "ftrl":
+    optimizer = tf.train.FtrlOptimizer(learning_rate)
+elif FLAGS.optimizer == "rmsprop":
+    optimizer = tf.train.RMSPropOptimizer(learning_rate)
 else:
-    optimizer = tf.train.MomentumOptimizer(learning_rate)
+    print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
+    exit(1)
+
 global_step = tf.Variable(0, name='global_step', trainable=False)
 train_op = optimizer.minimize(loss, global_step=global_step)
 
@@ -205,6 +224,7 @@ with tf.Session() as sess:
                         [accuracy, auc_op, summary_op])
                     print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
                         step, loss_value, accuracy_value, auc_value))
+
                     writer.add_summary(summary_value, step)
                     saver.save(sess,
                                "./checkpoint/checkpoint.ckpt",

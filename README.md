@@ -43,6 +43,12 @@ If we want to run inference or prediction, just run with parameters.
 python cancer_classifier.py --mode=inference
 ```
 
+You can specify the GPU to train.
+
+```
+CUDA_VISIBLE_DEVICES='0'
+```
+
 ### Use TensorBoard
 
 The summary data is stored in [tensorboard](./tensorboard/) and we use TenorBoard for visualization.
