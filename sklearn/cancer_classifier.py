@@ -5,6 +5,7 @@ from sklearn import linear_model
 from sklearn import tree
 from sklearn import svm
 from sklearn import metrics
+from sklearn.neural_network import MLPClassifier
 
 FEATURE_NUMBER = 9
 
@@ -20,8 +21,11 @@ with open("../data/cancer_test.csv", "r") as f:
     test_features = test_dataset[:, 0:FEATURE_NUMBER]
 
 # Define the model
-classifier = tree.DecisionTreeClassifier()
+#classifier = tree.DecisionTreeClassifier()
 #classifier = svm.SVC(C=1, kernel='linear')
+classifier = MLPClassifier(algorithm='sgd', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1, learning_rate_init=0.001, batch_size=64, max_iter=100, verbose=True)
+#classifier = MLPClassifier(algorithm='l-bfgs', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1)
+#classifier = MLPClassifier(algorithm='adam', alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1)
 
 # Train the model
 print("Start to train")

@@ -33,6 +33,7 @@ learning_rate = FLAGS.learning_rate
 epoch_number = FLAGS.epoch_number
 thread_number = FLAGS.thread_number
 batch_size = FLAGS.batch_size
+validate_batch_size = 1024
 min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
 FEATURE_SIZE = 9
@@ -71,7 +72,7 @@ validate_filename_queue = tf.train.string_input_producer(
 validate_label, validate_features = read_and_decode(validate_filename_queue)
 validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
     [validate_label, validate_features],
-    batch_size=batch_size,
+    batch_size=validate_batch_size,
     num_threads=thread_number,
     capacity=capacity,
     min_after_dequeue=min_after_dequeue)
@@ -181,6 +182,8 @@ inference_op = tf.argmax(inference_softmax, 1)
 
 # Initialize saver and summary
 mode = FLAGS.mode
+checkpoint_dir = "./checkpoint/"
+checkpoint_file = checkpoint_dir + "checkpoint.ckpt"
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 tf.scalar_summary('loss', loss)
@@ -206,7 +209,7 @@ with tf.Session() as sess:
 
     if mode == "train" or mode == "train_from_scratch":
         if mode != "train_from_scratch":
-            ckpt = tf.train.get_checkpoint_state("./checkpoint/")
+            ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
             if ckpt and ckpt.model_checkpoint_path:
                 print("Continue training from the model {}".format(
                     ckpt.model_checkpoint_path))
@@ -227,7 +230,7 @@ with tf.Session() as sess:
 
                     writer.add_summary(summary_value, step)
                     saver.save(sess,
-                               "./checkpoint/checkpoint.ckpt",
+                               checkpoint_file,
                                global_step=step)
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")
@@ -249,7 +252,7 @@ with tf.Session() as sess:
         correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
 
         # Restore wights from model file
-        ckpt = tf.train.get_checkpoint_state("./checkpoint/")
+        ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             print("Use the model {}".format(ckpt.model_checkpoint_path))
             saver.restore(sess, ckpt.model_checkpoint_path)
