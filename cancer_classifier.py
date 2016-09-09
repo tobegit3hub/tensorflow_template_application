@@ -87,12 +87,13 @@ output_units = 2
 
 
 def full_connect(inputs, weights_shape, biases_shape):
-    weights = tf.get_variable("weights",
-                              weights_shape,
-                              initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases",
-                             biases_shape,
-                             initializer=tf.random_normal_initializer())
+    with tf.device('/cpu:0'):
+        weights = tf.get_variable("weights",
+                                  weights_shape,
+                                  initializer=tf.random_normal_initializer())
+        biases = tf.get_variable("biases",
+                                 biases_shape,
+                                 initializer=tf.random_normal_initializer())
     return tf.matmul(inputs, weights) + biases
 
 
@@ -138,8 +139,6 @@ elif FLAGS.optimizer == "adadelta":
     optimizer = tf.train.AdadeltaOptimizer(learning_rate)
 elif FLAGS.optimizer == "adagrad":
     optimizer = tf.train.AdagradOptimizer(learning_rate)
-elif FLAGS.optimizer == "adagradda":
-    optimizer = tf.train.AdagradDAOptimizer(learning_rate)
 elif FLAGS.optimizer == "adam":
     optimizer = tf.train.AdamOptimizer(learning_rate)
 elif FLAGS.optimizer == "ftrl":
@@ -150,7 +149,9 @@ else:
     print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
     exit(1)
 
-global_step = tf.Variable(0, name='global_step', trainable=False)
+with tf.device("/cpu:0"):
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+
 train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
