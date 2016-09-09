@@ -1,0 +1,19 @@
+// Refer to https://github.com/tensorflow/serving/blob/master/tensorflow_serving/apis/predict.proto
+syntax = "proto3";
+
+package tensorflow.serving;
+option cc_enable_arenas = true;
+
+import "tensorflow/core/framework/tensor.proto";
+
+message PredictRequest {
+  map<string, TensorProto> inputs = 1;
+}
+
+message PredictResponse {
+  map<string, TensorProto> outputs = 1;
+}
+
+service PredictionService {
+  rpc Predict(PredictRequest) returns (PredictResponse);
+}
