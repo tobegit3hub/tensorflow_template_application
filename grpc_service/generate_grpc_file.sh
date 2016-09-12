@@ -3,7 +3,8 @@
 set -x
 set -e
 
-cp inference.proto ./tensorflow/
+cp predict.proto ./tensorflow/
 cd ./tensorflow/
-python -m grpc.tools.protoc -I./ --python_out=.. --grpc_python_out=.. ./inference.proto
-rm ./inference.proto
+python -m grpc.tools.protoc -I./ --python_out=.. --grpc_python_out=.. ./predict.proto
+rm ./predict.proto
+mv ./predict_pb2.py ../
