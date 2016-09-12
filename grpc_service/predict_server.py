@@ -8,6 +8,7 @@ import grpc
 import numpy as np
 import tensorflow as tf
 import logging
+from tensorflow.python.framework import tensor_util
 
 import predict_pb2
 
@@ -39,67 +40,41 @@ class PredictionService(predict_pb2.PredictionServiceServicer):
 
             self.inputs = json.loads(tf.get_collection('inputs')[0])
             self.outputs = json.loads(tf.get_collection('outputs')[0])
-            #import ipdb;ipdb.set_trace()
-
         else:
             logging.error("No model found, exit")
             exit()
 
     def Predict(self, request, context):
-
-        request_map = request.inputs
-
-        from tensorflow.python.framework import tensor_util
-
-        feed_dict = {}
-        for key in self.inputs.keys():
-            
-            feed_dict[self.inputs[key]] = tensor_util.MakeNdarray(request_map[key])
-
+        """Run predict op for each request.
         
+        Args:
+          request: The TensorProto which contains the map of "inputs". The request.inputs looks like {'features': dtype: DT_FLOAT tensor_shape { dim { size: 2 } } tensor_content: "\000\000 A\000\000?" }.
+          context: The grpc.beta._server_adaptations._FaceServicerContext object.
 
-        feed_dict2 = {}
-        feed_dict2['Placeholder:0'] = np.array([[10, 10, 10, 8, 6, 1, 8, 9, 1], [10, 10, 10, 8, 6, 1, 8, 9, 1]])
-        feed_dict2['Placeholder_1:0'] = np.array([1, 2])
+        Returns:
+          The TensorProto which contains the map of "outputs". The response.outputs looks like {'softmax': dtype: DT_FLOAT tensor_shape { dim { size: 2 } } tensor_content: "\\\326\242=4\245k?\\\326\242=4\245k?" }
+        """
+        request_map = request.inputs
+        feed_dict = {}
+        for k, v in self.inputs.items():
+            # Convert TensorProto objects to numpy
+            feed_dict[v] = tensor_util.MakeNdarray(request_map[k])
+
+        # Example result: {'key': array([ 2.,  2.], dtype=float32), 'prediction': array([1, 1]), 'softmax': array([[ 0.07951042,  0.92048955], [ 0.07951042,  0.92048955]], dtype=float32)}
         predict_result = self.sess.run(self.outputs, feed_dict=feed_dict)
-        #import ipdb;ipdb.set_trace()
-
-        #{u'key': array([ 2.,  2.], dtype=float32),
-        #u'prediction': array([1, 1]),
-        #u'softmax': array([[ 0.07951042,  0.92048955],
-        #[ 0.07951042,  0.92048955]], dtype=float32)}
 
         response = predict_pb2.PredictResponse()
         for k, v in predict_result.items():
+            # Convert numpy objects to TensorProto
             response.outputs[k].CopyFrom(tensor_util.make_tensor_proto(v))
         return response
-        #response.outputs["key"].CopyFrom(tensor_util.make_tensor_proto(np.array([1, 2]), dtype=np.float32, shape=[2]))
-
-
-        '''
-        # foo_numpy_array = np.array([(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1)])
-        # request_example = json.dumps({"key": 1, "features": foo_numpy_array.tolist()})
-        request_example = json.loads(request.data)
-        # TODO: support data with shape
-        # request_example["features"] = np.array(request_example["features"])
-
-        feed_dict = {}
-        for key in self.inputs.keys():
-            feed_dict[self.inputs[key]] = request_example[key]
-
-        
-        inference_result = self.sess.run(self.outputs, feed_dict=feed_dict)
-        response_data = str(inference_result)
-
-        logging.debug("Request data: {}, response data: {}".format(
-            request.data, response_data))
-        return inference_pb2.InferenceResponse(data=response_data)
-        '''
 
 
 def serve(prediction_service):
+    """Start the gRPC service."""
     logging.info("Start gRPC server with PredictionService: {}".format(vars(
         prediction_service)))
+
     # TODO: not able to use ThreadPoolExecutor
     #server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     #inference_pb2.add_InferenceServiceService_to_server(InferenceService(), server)
@@ -115,6 +90,7 @@ def serve(prediction_service):
 
 
 if __name__ == '__main__':
+    # Specify the model files
     checkpoint_file = "../checkpoint/"
     graph_file = "../checkpoint/checkpoint.ckpt-10.meta"
     prediction_service = PredictionService(checkpoint_file, graph_file)
