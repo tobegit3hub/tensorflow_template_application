@@ -1,0 +1,2 @@
+*tensorflow*
+*perftools*gputools*
