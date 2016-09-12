@@ -74,28 +74,22 @@ public class Hello {
         TensorProto tensorProto2 = builder2.build();
 
         // GRPC map usage, refer to https://developers.google.com/protocol-buffers/docs/reference/java-generated#map-fields
-
-        //Predict.PredictRequest.Builder requestBuilder = Predict.PredictRequest.newBuilder();
-        //Predict.PredictRequest request = requestBuilder.putWeight("intputs", tensorProto);
-        //Predict.PredictRequest request = requestBuilder.putOutputs("intputs", tensorProto).build();
-
-        //Predict.PredictRequest request = tensorflow.serving.Predict.PredictRequest.newBuilder().putIuputs("intputs", tensorProto).build();
-        //Predict.PredictRequest request = tensorflow.serving.Predict.PredictRequest.newBuilder().build();
         Predict.PredictRequest request = tensorflow.serving.Predict.PredictRequest.newBuilder().putInputs("features", tensorProto).putInputs("key", tensorProto2).build();
-        //Predict.PredictRequest request = tensorflow.serving.Predict.PredictRequest.newBuilder().putInputs("features", tensorProto).build();
-
 
         //tensorflow.serving.Predict.PredictRequest.Builder request_builder = tensorflow.serving.Predict.PredictRequest.newBuilder().putInputs("features", tensorProto);
         //Predict.PredictRequest request = request_builder.build();
 
-
         System.out.print("Inputs count: " + Integer.toString(request.getInputsCount()));
-
 
         Predict.PredictResponse response;
         try {
             System.out.print("Start to call rpc");
             response = blockingStub.predict(request);
+            java.util.Map<java.lang.String, org.tensorflow.framework.TensorProto> outputs = response.getOutputs();
+            for (java.util.Map.Entry<java.lang.String, org.tensorflow.framework.TensorProto> entry : outputs.entrySet()) {
+                System.out.println("Response with the key: " + entry.getKey());
+            }
+
             System.out.print("end of call rpc");
         } catch (StatusRuntimeException e) {
             logger.log(Level.WARNING, "RPC failed: {0}", e.getStatus());
