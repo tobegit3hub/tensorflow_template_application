@@ -30,7 +30,7 @@ bat post http://127.0.0.1:8000/cancer_predict/online_train/ cancer_features_and_
 ## Implementation
 
 ```
-django-admin startproject cancer_prediction_service
+django-admin startproject restful_server
 
 python manage.py startapp cancer_predict
 

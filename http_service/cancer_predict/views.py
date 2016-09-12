@@ -13,39 +13,28 @@ def index(request):
     return HttpResponse(
         "Hello, world. You should POST /cancer_predict/predict/.")
 
-# Build TensorFlow graph
-init_op = tf.initialize_all_variables()
-feature_size = 9
-model_path = "/Users/tobe/code/deep_recommend_system/checkpoint/"
 
-# For inference
-weights2 = tf.Variable(tf.truncated_normal([feature_size, 2]))
-biases2 = tf.Variable(tf.truncated_normal([2]))
-inference_features = tf.placeholder("float", [None, feature_size])
-inference_softmax = tf.nn.softmax(tf.matmul(inference_features, weights2) +
-                                  biases2)
-inference_op = tf.argmax(inference_softmax, 1)
+def init():
+  feature_size = 9
+  checkpoint_path = "../../checkpoint/"
+  checkpoint_path = "/home/tobe/code/deep_recommend_system/checkpoint/"
+  checkpoint_file = "../../checkpoint/checkpoint.ckpt-10.meta"
+  checkpoint_file = "/home/tobe/code/deep_recommend_system/checkpoint/checkpoint.ckpt-10.meta"
 
-# For online training
-learning_rate = 0.01
-global_step = tf.Variable(0, name='global_step', trainable=False)
-optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-batch_labels = tf.placeholder(tf.int32, [None])
-batch_features = tf.placeholder("float", [None, feature_size])
-logits2 = tf.matmul(batch_features, weights2) + biases2
-cross_entropy2 = tf.nn.sparse_softmax_cross_entropy_with_logits(logits2,
-                                                                batch_labels)
-loss2 = tf.reduce_mean(cross_entropy2)
-train_op2 = optimizer.minimize(loss2, global_step=global_step)
+  sess = tf.Session()
 
-sess = tf.Session()
-sess.run(init_op)
-saver = tf.train.Saver()
-
-ckpt = tf.train.get_checkpoint_state(model_path)
-if ckpt and ckpt.model_checkpoint_path:
-    print("Use the model {}".format(ckpt.model_checkpoint_path))
-    saver.restore(sess, ckpt.model_checkpoint_path)
+  ckpt = tf.train.get_checkpoint_state(checkpoint_path)
+  if ckpt and ckpt.model_checkpoint_path:
+      print("Use the model {}".format(ckpt.model_checkpoint_path))
+      saver = tf.train.import_meta_graph(checkpoint_file)
+      saver.restore(sess, ckpt.model_checkpoint_path)
+    
+      inputs = json.loads(tf.get_collection('inputs')[0])
+      outputs = json.loads(tf.get_collection('outputs')[0])
+      return sess, inputs, outputs
+  else:
+      print("No model found, exit now")
+      exit(1)
 
 
 # Disable CSRF, refer to https://docs.djangoproject.com/en/dev/ref/csrf/#edge-cases
@@ -56,13 +45,20 @@ def predict(request):
         body = json.loads(request.body)
         data = body.get('cancer_features')
         items = [item.split(",") for item in data.split(";")]
-
         inference_data = np.array(items, dtype="float")
+
+        sess, inputs, outputs = init()
+
+        request_examples = {"features": np.array([[10,10,10,8,6,1,8,9,1], [6,2,1,1,1,1,7,1,1]], dtype="float"), "key": np.array([1, 2], dtype="float")}
+
+        feed_dict = {}
+        for k, v in inputs.items():
+            feed_dict[v] = request_examples[k]
         inference_result = sess.run(
-            inference_op,
-            feed_dict={inference_features: inference_data})
-        print("Inference data: {}, inference result: {}".format(
-            inference_data, inference_result))
+            outputs,
+            feed_dict=feed_dict)
+        print("Request examples: {}, inference result: {}".format(
+            request_examples, inference_result))
 
         return HttpResponse("Success to predict cancer, result: {}".format(
             inference_result))
