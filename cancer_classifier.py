@@ -20,7 +20,7 @@ flags.DEFINE_string("output_dir", "./tensorboard/",
                     "indicates training output")
 flags.DEFINE_string("model", "deep",
                     "Model to train, option model: deep, linear")
-flags.DEFINE_string("optimizer", "sgd", "optimizer to train")
+flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
 flags.DEFINE_integer('steps_to_validate', 10,
