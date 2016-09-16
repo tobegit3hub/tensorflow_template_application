@@ -18,8 +18,8 @@ flags.DEFINE_integer("min_after_dequeue", 100,
                      "indicates min_after_dequeue of shuffle queue")
 flags.DEFINE_string("output_dir", "./tensorboard/",
                     "indicates training output")
-flags.DEFINE_string("model", "deep",
-                    "Model to train, option model: deep, linear")
+flags.DEFINE_string("model", "wide_and_deep",
+                    "Model to train, option model: wide, deep, wide_and_deep")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
 flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
@@ -102,7 +102,7 @@ def full_connect_relu(inputs, weights_shape, biases_shape):
   return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
 
 
-def inference(inputs):
+def deep_inference(inputs):
   '''
     Shape of inputs should be [batch_size, input_units], return shape [batch_size, output_units]
     '''
@@ -122,14 +122,34 @@ def inference(inputs):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
 
-def logistic_regression_inference(inputs):
+
+def wide_inference(inputs):
+  """
+  Logistic regression model.
+  """
   with tf.variable_scope("logistic_regression"):
     layer = full_connect(inputs, [input_units, output_units], [output_units])
   return layer
 
-deep_logits = inference(batch_features)
-wide_logits = logistic_regression_inference(batch_features)
-logits = deep_logits + wide_logits
+
+def wide_and_deep_inference(inputs):
+  return wide_inference(inputs) + deep_inference(inputs)
+
+
+def inference(inputs):
+  print("Use the model: {}".format(FLAGS.model))
+  if FLAGS.model == "wide":
+    return wide_inference(inputs)
+  elif FLAGS.model == "deep":
+    return deep_inference(inputs)
+  elif FLAGS.model == "wide_and_deep":
+    return wide_and_deep_inference(inputs)
+  else:
+    print("Unknown model, exit now")
+    exit(1)
+
+
+logits = inference(batch_features)
 
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
