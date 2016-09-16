@@ -122,8 +122,15 @@ def inference(inputs):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
 
+def logistic_regression_inference(inputs):
+  with tf.variable_scope("logistic_regression"):
+    layer = full_connect(inputs, [input_units, output_units], [output_units])
+  return layer
 
-logits = inference(batch_features)
+deep_logits = inference(batch_features)
+wide_logits = logistic_regression_inference(batch_features)
+logits = deep_logits + wide_logits
+
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
