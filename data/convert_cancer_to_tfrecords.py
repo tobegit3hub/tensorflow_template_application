@@ -10,35 +10,35 @@ import os
 
 
 def convert_tfrecords(input_filename, output_filename):
-    current_path = os.getcwd()
-    input_file = os.path.join(current_path, input_filename)
-    output_file = os.path.join(current_path, output_filename)
-    print("Start to convert {} to {}".format(input_file, output_file))
+  current_path = os.getcwd()
+  input_file = os.path.join(current_path, input_filename)
+  output_file = os.path.join(current_path, output_filename)
+  print("Start to convert {} to {}".format(input_file, output_file))
 
-    writer = tf.python_io.TFRecordWriter(output_file)
+  writer = tf.python_io.TFRecordWriter(output_file)
 
-    for line in open(input_file, "r"):
-        # Split content in CSV file
-        data = line.split(",")
-        label = float(data[9])
-        features = [float(i) for i in data[0:9]]
+  for line in open(input_file, "r"):
+    # Split content in CSV file
+    data = line.split(",")
+    label = float(data[9])
+    features = [float(i) for i in data[0:9]]
 
-        # Write each example one by one
-        example = tf.train.Example(features=tf.train.Features(feature={
-            "label":
-            tf.train.Feature(float_list=tf.train.FloatList(value=[label])),
-            "features":
-            tf.train.Feature(float_list=tf.train.FloatList(value=features)),
-        }))
+    # Write each example one by one
+    example = tf.train.Example(features=tf.train.Features(feature={
+        "label":
+        tf.train.Feature(float_list=tf.train.FloatList(value=[label])),
+        "features":
+        tf.train.Feature(float_list=tf.train.FloatList(value=features)),
+    }))
 
-        writer.write(example.SerializeToString())
+    writer.write(example.SerializeToString())
 
-    writer.close()
-    print("Successfully convert {} to {}".format(input_file, output_file))
+  writer.close()
+  print("Successfully convert {} to {}".format(input_file, output_file))
 
 
 current_path = os.getcwd()
 for file in os.listdir(current_path):
-    if file.startswith("cancer") and file.endswith(
-            ".csv") and not file.endswith(".tfrecords"):
-        convert_tfrecords(file, file + ".tfrecords")
+  if file.startswith("cancer_train") and file.endswith(".csv") and not file.endswith(
+      ".tfrecords"):
+    convert_tfrecords(file, file + ".tfrecords")

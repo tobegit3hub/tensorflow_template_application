@@ -278,6 +278,7 @@ with tf.Session() as sess:
   elif mode == "inference":
     print("Start to run inference")
 
+    '''
     inference_data = np.array(
         [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
          (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
@@ -285,6 +286,11 @@ with tf.Session() as sess:
          (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
          (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
     correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
+    '''
+
+    inference_result_file_name = "./cancer_inference_result.csv"
+    inference_test_file_name = "./data/cancer_inference.csv"
+    inference_data = np.genfromtxt(inference_test_file_name, delimiter=',')
 
     # Restore wights from model file
     ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
@@ -293,10 +299,10 @@ with tf.Session() as sess:
       saver.restore(sess, ckpt.model_checkpoint_path)
       inference_result = sess.run(
           inference_op,
+          # inference_softmax,
           feed_dict={inference_features: inference_data})
-      print("Real data: {}".format(correct_labels))
-      print("Inference data: {}".format(inference_result))
+      print("Inference result: {}".format(inference_result))
 
     else:
-      print("No model found, exit")
-      exit()
+      print("No model found, exit now")
+      exit(1)
