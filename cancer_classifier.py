@@ -276,6 +276,7 @@ with tf.Session() as sess:
 
   elif mode == "inference":
     print("Start to run inference")
+    start_time = datetime.datetime.now()
 
     '''
     inference_data = np.array(
@@ -297,10 +298,14 @@ with tf.Session() as sess:
       print("Use the model {}".format(ckpt.model_checkpoint_path))
       saver.restore(sess, ckpt.model_checkpoint_path)
       inference_result = sess.run(
-          inference_op,
-          # inference_softmax,
+          #inference_op,
+          inference_softmax,
           feed_dict={inference_features: inference_data})
-      print("Inference result: {}".format(inference_result))
+
+      end_time = datetime.datetime.now()
+      print("[{}] Inference result: {}".format(end_time - start_time, inference_result))
+      np.savetxt(inference_result_file_name, inference_result, delimiter=",")
+      print("Save result to file: {}".format(inference_result_file_name))
 
     else:
       print("No model found, exit now")
