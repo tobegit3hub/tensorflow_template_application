@@ -13,43 +13,51 @@ flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
 flags.DEFINE_integer("batch_size", 1024,
                      "indicates batch size in a single gpu, default is 1024")
+flags.DEFINE_integer("validate_batch_size", 1024,
+                     "indicates batch size in a single gpu, default is 1024")
 flags.DEFINE_integer("thread_number", 1, "Number of thread to read data")
 flags.DEFINE_integer("min_after_dequeue", 100,
                      "indicates min_after_dequeue of shuffle queue")
-flags.DEFINE_string("output_dir", "./tensorboard/",
+flags.DEFINE_string("checkpoint_dir", "./checkpoint/",
+                    "indicates the checkpoint dirctory")
+flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
                     "indicates training output")
 flags.DEFINE_string("model", "wide_and_deep",
                     "Model to train, option model: wide, deep, wide_and_deep")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
-flags.DEFINE_integer('hidden1', 10, 'Number of units in hidden layer 1.')
-flags.DEFINE_integer('hidden2', 20, 'Number of units in hidden layer 2.')
-flags.DEFINE_integer('steps_to_validate', 10,
+flags.DEFINE_integer('steps_to_validate', 100,
                      'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train",
                     "Option mode: train, train_from_scratch, inference")
 
-# Hyperparameter
+FEATURE_SIZE = 9
+LABEL_SIZE = 2
 learning_rate = FLAGS.learning_rate
 epoch_number = FLAGS.epoch_number
 thread_number = FLAGS.thread_number
 batch_size = FLAGS.batch_size
-validate_batch_size = 1024
+validate_batch_size = FLAGS.validate_batch_size
 min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
-FEATURE_SIZE = 9
+mode = FLAGS.mode
+checkpoint_dir = FLAGS.checkpoint_dir
+if not os.path.exists(checkpoint_dir):
+  os.makedirs(checkpoint_dir)
+tensorboard_dir = FLAGS.tensorboard_dir
+if not os.path.exists(tensorboard_dir):
+  os.makedirs(tensorboard_dir)
 
 
-# Read serialized examples from filename queue
+# Read TFRecords examples from filename queue
 def read_and_decode(filename_queue):
   reader = tf.TFRecordReader()
   _, serialized_example = reader.read(filename_queue)
-  features = tf.parse_single_example(serialized_example,
-                                     features={
-                                         "label": tf.FixedLenFeature(
-                                             [], tf.float32),
-                                         "features": tf.FixedLenFeature(
-                                             [FEATURE_SIZE], tf.float32),
-                                     })
+  features = tf.parse_single_example(
+      serialized_example,
+      features={
+          "label": tf.FixedLenFeature([], tf.float32),
+          "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
+      })
   label = features["label"]
   features = features["features"]
   return label, features
@@ -81,10 +89,10 @@ validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
 # Define the model
 input_units = FEATURE_SIZE
 hidden1_units = 10
-hidden2_units = 20
+hidden2_units = 10
 hidden3_units = 10
-hidden4_units = 30
-output_units = 2
+hidden4_units = 10
+output_units = LABEL_SIZE
 
 
 def full_connect(inputs, weights_shape, biases_shape):
@@ -104,8 +112,8 @@ def full_connect_relu(inputs, weights_shape, biases_shape):
 
 def deep_inference(inputs):
   '''
-    Shape of inputs should be [batch_size, input_units], return shape [batch_size, output_units]
-    '''
+  Shape of inputs should be [batch_size, input_units], return shape [batch_size, output_units]
+  '''
   with tf.variable_scope("layer1"):
     layer = full_connect_relu(inputs, [input_units, hidden1_units],
                               [hidden1_units])
@@ -150,12 +158,12 @@ def inference(inputs):
 
 
 logits = inference(batch_features)
-
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
-loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
+loss = tf.reduce_mean(cross_entropy, name='loss')
 
+print("Use the optimizer: {}".format(FLAGS.optimizer))
 if FLAGS.optimizer == "sgd":
   optimizer = tf.train.GradientDescentOptimizer(learning_rate)
 elif FLAGS.optimizer == "momentum":
@@ -178,7 +186,6 @@ else:
 
 with tf.device("/cpu:0"):
   global_step = tf.Variable(0, name='global_step', trainable=False)
-
 train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
@@ -209,9 +216,7 @@ inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
 
 # Initialize saver and summary
-mode = FLAGS.mode
-checkpoint_dir = "./checkpoint/"
-checkpoint_file = checkpoint_dir + "checkpoint.ckpt"
+checkpoint_file = checkpoint_dir + "/checkpoint.ckpt"
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 tf.scalar_summary('loss', loss)
@@ -220,9 +225,9 @@ tf.scalar_summary('auc', auc_op)
 saver = tf.train.Saver()
 keys_placeholder = tf.placeholder("float")
 keys = tf.identity(keys_placeholder)
-tf.add_to_collection("inputs",
-                     json.dumps({'key': keys_placeholder.name,
-                                 'features': inference_features.name}))
+tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name,
+                                           'features':
+                                           inference_features.name}))
 tf.add_to_collection("outputs", json.dumps({'key': keys.name,
                                             'softmax': inference_softmax.name,
                                             'prediction': inference_op.name}))
@@ -230,8 +235,7 @@ tf.add_to_collection("outputs", json.dumps({'key': keys.name,
 # Create session to run graph
 with tf.Session() as sess:
   summary_op = tf.merge_all_summaries()
-  output_dir = FLAGS.output_dir
-  writer = tf.train.SummaryWriter(output_dir, sess.graph)
+  writer = tf.train.SummaryWriter(tensorboard_dir, sess.graph)
   sess.run(init_op)
   sess.run(tf.initialize_local_variables())
 
@@ -269,12 +273,12 @@ with tf.Session() as sess:
   elif mode == "inference":
     print("Start to run inference")
 
-    inference_data = np.array([(10, 10, 10, 8, 6, 1, 8, 9, 1), (
-        6, 2, 1, 1, 1, 1, 7, 1, 1), (2, 5, 3, 3, 6, 7, 7, 5, 1), (
-            10, 4, 3, 1, 3, 3, 6, 5, 2), (6, 10, 10, 2, 8, 10, 7, 3, 3), (
-                5, 6, 5, 6, 10, 1, 3, 1, 1), (1, 1, 1, 1, 2, 1, 2, 1, 2), (
-                    3, 7, 7, 4, 4, 9, 4, 8, 1), (1, 1, 1, 1, 2, 1, 2, 1, 1), (
-                        4, 1, 1, 3, 2, 1, 3, 1, 1)])
+    inference_data = np.array(
+        [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
+         (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
+         (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
+         (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
+         (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
     correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
 
     # Restore wights from model file
