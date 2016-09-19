@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 
-import tensorflow as tf
-import math
-import os
-import numpy as np
+import datetime
 import json
+import math
+import numpy as np
+import os
+import tensorflow as tf
 
 # Define parameters
 flags = tf.app.flags
@@ -251,17 +252,21 @@ with tf.Session() as sess:
     coord = tf.train.Coordinator()
     threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
+    start_time = datetime.datetime.now()
     try:
       while not coord.should_stop():
         _, loss_value, step = sess.run([train_op, loss, global_step])
         if step % steps_to_validate == 0:
           accuracy_value, auc_value, summary_value = sess.run(
               [accuracy, auc_op, summary_op])
-          print("Step: {}, loss: {}, accuracy: {}, auc: {}".format(
-              step, loss_value, accuracy_value, auc_value))
+          end_time = datetime.datetime.now()
+          print("[{}] Step: {}, loss: {}, accuracy: {}, auc: {}".format(
+              end_time - start_time, step, loss_value, accuracy_value,
+              auc_value))
 
           writer.add_summary(summary_value, step)
           saver.save(sess, checkpoint_file, global_step=step)
+          start_time = end_time
     except tf.errors.OutOfRangeError:
       print("Done training after reading all data")
     finally:
