@@ -65,7 +65,7 @@ def read_and_decode(filename_queue):
 
 # Read TFRecords files for training
 filename_queue = tf.train.string_input_producer(
-    tf.train.match_filenames_once("data/cancer.csv.tfrecords"),
+    tf.train.match_filenames_once("data/cancer_train.csv.tfrecords"),
     num_epochs=epoch_number)
 label, features = read_and_decode(filename_queue)
 batch_labels, batch_features = tf.train.shuffle_batch(
@@ -200,12 +200,11 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 
 # Compute auc
 validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
-num_labels = 2
 sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
 derived_size = tf.shape(validate_batch_labels)[0]
 indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
 concated = tf.concat(1, [indices, sparse_labels])
-outshape = tf.pack([derived_size, num_labels])
+outshape = tf.pack([derived_size, LABEL_SIZE])
 new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
 _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
                                              new_validate_batch_labels)
