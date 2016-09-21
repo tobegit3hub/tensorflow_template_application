@@ -95,7 +95,6 @@ hidden3_units = 10
 hidden4_units = 10
 output_units = LABEL_SIZE
 
-
 def full_connect(inputs, weights_shape, biases_shape):
   with tf.device('/cpu:0'):
     weights = tf.get_variable("weights",
@@ -106,15 +105,10 @@ def full_connect(inputs, weights_shape, biases_shape):
                              initializer=tf.random_normal_initializer())
   return tf.matmul(inputs, weights) + biases
 
-
 def full_connect_relu(inputs, weights_shape, biases_shape):
   return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
 
-
 def deep_inference(inputs):
-  '''
-  Shape of inputs should be [batch_size, input_units], return shape [batch_size, output_units]
-  '''
   with tf.variable_scope("layer1"):
     layer = full_connect_relu(inputs, [input_units, hidden1_units],
                               [hidden1_units])
