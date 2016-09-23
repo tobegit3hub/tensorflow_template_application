@@ -79,7 +79,7 @@ def main(_):
 
             # Read TFRecords files
             filename_queue = tf.train.string_input_producer(
-                tf.train.match_filenames_once("../data/cancer.csv.tfrecords"),
+                tf.train.match_filenames_once("../data/cancer_train.csv.tfrecords"),
                 num_epochs=epoch_number)
             label, features = read_and_decode(filename_queue)
             batch_labels, batch_features = tf.train.shuffle_batch(
