@@ -31,6 +31,18 @@ flags.DEFINE_integer('steps_to_validate', 100,
 flags.DEFINE_string("mode", "train",
                     "Option mode: train, train_from_scratch, inference")
 
+# Read data from FDS
+ID = "AKJUDVRVDLUZ6D43UI"
+SECRET = "15xzSfTO2qYMmRpXraa0JsYwOl59XsUbx96959ky"
+ENDPOINT="cnbj1-fds.api.xiaomi.net"
+BUCKET = "cloud-ml-test"
+train_file = "deep_recommend_system_data/cancer_train.csv.tfrecords"
+validate_file = "deep_recommend_system_data/cancer_test.csv.tfrecords"
+checkpoint_dir = "deep_recommend_system"
+fds_train_file = "fds://{}:{}@{}/{}/{}".format(ID, SECRET, ENDPOINT, BUCKET, train_file)
+fds_validate_file = "fds://{}:{}@{}/{}/{}".format(ID, SECRET, ENDPOINT, BUCKET, validate_file)
+checkpoint_dir = "fds://{}:{}@{}/{}/{}".format(ID, SECRET, ENDPOINT, BUCKET, checkpoint_dir)
+
 FEATURE_SIZE = 9
 LABEL_SIZE = 2
 learning_rate = FLAGS.learning_rate
@@ -41,24 +53,12 @@ validate_batch_size = FLAGS.validate_batch_size
 min_after_dequeue = FLAGS.min_after_dequeue
 capacity = thread_number * batch_size + min_after_dequeue
 mode = FLAGS.mode
-checkpoint_dir = FLAGS.checkpoint_dir
+#checkpoint_dir = FLAGS.checkpoint_dir
 if not os.path.exists(checkpoint_dir):
   os.makedirs(checkpoint_dir)
 tensorboard_dir = FLAGS.tensorboard_dir
 if not os.path.exists(tensorboard_dir):
   os.makedirs(tensorboard_dir)
-
-
-# Read data from FDS
-ID = "AKJUDVRVDLUZ6D43UI"
-SECRET = "15xzSfTO2qYMmRpXraa0JsYwOl59XsUbx96959ky"
-ENDPOINT="cnbj1-fds.api.xiaomi.net"
-BUCKET = "cloud-ml-test"
-train_file = "deep_recommend_system_data/cancer_train.csv.tfrecords"
-validate_file = "deep_recommend_system_data/cancer_test.csv.tfrecords"
-fds_train_file = "fds://{}:{}@{}/{}/{}".format(ID, SECRET, ENDPOINT, BUCKET, train_file)
-fds_validate_file = "fds://{}:{}@{}/{}/{}".format(ID, SECRET, ENDPOINT, BUCKET, validate_file)
-
 
 # Read TFRecords examples from filename queue
 def read_and_decode(filename_queue):
