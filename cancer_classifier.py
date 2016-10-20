@@ -121,7 +121,7 @@ def deep_inference(inputs):
   with tf.variable_scope("layer4"):
     layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
                               [hidden4_units])
-  with tf.variable_scope("outpu"):
+  with tf.variable_scope("output"):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
 
