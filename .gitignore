@@ -93,3 +93,6 @@ ENV/
 
 # Rope project settings
 .ropeproject
+
+# IDEA
+.idea/

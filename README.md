@@ -6,7 +6,7 @@ Most data is stored in CSV files and you can learn to convert them to **TFRecord
 
 ## Usage
 
-### Prepare data 
+### dense data 
 
 The [data](./data/) format should be CSV and you can convert to TFRecords.
 
@@ -23,9 +23,27 @@ cd ./data/
 python convert_cancer_to_tfrecords.py
 ```
 
+### sparse data 
+
+The [data](./data/) format should be LIBSVM and you can convert to TFRecords.
+
+```
+0 1:1 6:1 14:1 20:1 37:1 40:1 51:1 61:1 70:1 72:1 74:1 76:1 80:1 83:1
+0 1:1 6:1 17:1 22:1 36:1 42:1 49:1 62:1 67:1 72:1 74:1 76:1 78:1
+1 4:1 6:1 14:1 23:1 39:1 40:1 52:1 61:1 67:1 72:1 74:1 77:1 82:1 97:1
+1 5:1 9:1 17:1 19:1 39:1 41:1 51:1 64:1 67:1 73:1 74:1 76:1 82:1 83:1
+0 4:1 6:1 15:1 22:1 36:1 40:1 55:1 63:1 67:1 73:1 74:1 76:1 82:1 83:1
+0 3:1 6:1 15:1 22:1 36:1 40:1 48:1 63:1 67:1 73:1 74:1 76:1 80:1 83:1
+```
+
+```
+cd ./data/
+python convert_a8a_to_tfrecords.py
+```
+
 ### Develop application
 
-We can use the `cancer_classifier.py` to train or implement your model. Refer to [distributed](./distributed/) for distributed implementation.
+On dense data, we can use the `cancer_classifier.py` to train or implement your model. Refer to [distributed](./distributed/) for distributed implementation.
 
 ```
 python cancer_classifier.py
@@ -47,6 +65,11 @@ You can specify the GPU to train.
 
 ```
 CUDA_VISIBLE_DEVICES='0'
+```
+
+All above is the same for sparse data.
+```
+python a8a_classifier.py [parameters]
 ```
 
 ### Use TensorBoard
