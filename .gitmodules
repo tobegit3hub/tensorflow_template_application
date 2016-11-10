@@ -1,3 +1,0 @@
-[submodule "grpc_service/tensorflow"]
-	path = grpc_service/tensorflow
-	url = https://github.com/tensorflow/tensorflow.git
