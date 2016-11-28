@@ -78,7 +78,6 @@ public class PredictClient {
         };
 
         TensorProto.Builder keysTensorBuilder = TensorProto.newBuilder();
-        keysTensorBuilder.setDtype(org.tensorflow.framework.DataType.DT_INT32);
 
         for (int i = 0; i < keysTensorData.length; ++i) {
             for (int j = 0; j < keysTensorData[i].length; ++j) {
@@ -86,6 +85,11 @@ public class PredictClient {
             }
 
         }
+
+        TensorShapeProto.Dim keysDim1 = TensorShapeProto.Dim.newBuilder().setSize(2).build();
+        TensorShapeProto.Dim keysDim2 = TensorShapeProto.Dim.newBuilder().setSize(1).build();
+        TensorShapeProto keysShape = TensorShapeProto.newBuilder().addDim(keysDim1).addDim(keysDim2).build();
+        keysTensorBuilder.setDtype(org.tensorflow.framework.DataType.DT_INT32).setTensorShape(keysShape);
         TensorProto keysTensorProto = keysTensorBuilder.build();
 
         // Generate features TensorProto
@@ -95,7 +99,6 @@ public class PredictClient {
         };
 
         TensorProto.Builder featuresTensorBuilder = TensorProto.newBuilder();
-        featuresTensorBuilder.setDtype(org.tensorflow.framework.DataType.DT_FLOAT);
 
         for (int i = 0; i < featuresTensorData.length; ++i) {
             for (int j = 0; j < featuresTensorData[i].length; ++j) {
@@ -103,10 +106,10 @@ public class PredictClient {
             }
         }
 
-        TensorShapeProto.Dim dim1 = TensorShapeProto.Dim.newBuilder().setSize(2).build();
-        TensorShapeProto.Dim dim2 = TensorShapeProto.Dim.newBuilder().setSize(9).build();
-        TensorShapeProto shape = TensorShapeProto.newBuilder().addDim(dim1).addDim(dim2).build();
-        featuresTensorBuilder.setTensorShape(shape);
+        TensorShapeProto.Dim featuresDim1 = TensorShapeProto.Dim.newBuilder().setSize(2).build();
+        TensorShapeProto.Dim featuresDim2 = TensorShapeProto.Dim.newBuilder().setSize(9).build();
+        TensorShapeProto featuresShape = TensorShapeProto.newBuilder().addDim(featuresDim1).addDim(featuresDim2).build();
+        featuresTensorBuilder.setDtype(org.tensorflow.framework.DataType.DT_FLOAT).setTensorShape(featuresShape);
         TensorProto featuresTensorProto = featuresTensorBuilder.build();
 
         // Generate gRPC request
