@@ -16,6 +16,8 @@ flags.DEFINE_string("checkpoint_dir", "./checkpoint/",
                     "indicates the checkpoint dirctory")
 flags.DEFINE_string("model_path", "./model/", "The export path of the model")
 flags.DEFINE_integer("export_version", 1, "The version number of the model")
+flags.DEFINE_integer("benchmark_batch_size", 1, "")
+flags.DEFINE_integer("benchmark_test_number", 10000, "")
 
 def main():
   # Define training data
@@ -48,32 +50,18 @@ def main():
 
     # Start training
     start_time = time.time()
-    for epoch in range(FLAGS.epoch_number):
-      sess.run(train_op, feed_dict={X: x, Y: y})
 
-      # Start validating
-      if epoch % FLAGS.steps_to_validate == 0:
-        end_time = time.time()
-        print("[{}] Epoch: {}".format(end_time - start_time, epoch))
+    request_number = FLAGS.benchmark_test_number
+    batch_size = FLAGS.benchmark_batch_size
+    predict_x = np.ones(batch_size)
 
-        saver.save(sess, checkpoint_file)
-        start_time = end_time
+    start_time = time.time()
+    for i in range(request_number):
+      sess.run(predict_op, feed_dict={X: predict_x})
 
-    # Print model variables
-    w_value, b_value = sess.run([w, b])
-    print("The model of w: {}, b: {}".format(w_value, b_value))
+    end_time = time.time()
+    print("Average latency is: {} ms".format((end_time - start_time) * 1000 / request_number))
 
-    # Export the model
-    print("Exporting trained model to {}".format(FLAGS.model_path))
-    model_exporter = exporter.Exporter(saver)
-    model_exporter.init(
-      sess.graph.as_graph_def(),
-      named_graph_signatures={
-        'inputs': exporter.generic_signature({"features": X}),
-        'outputs': exporter.generic_signature({"prediction": predict_op})
-      })
-    model_exporter.export(FLAGS.model_path, tf.constant(FLAGS.export_version), sess)
-    print 'Done exporting!'
 
 if __name__ == "__main__":
   main()
