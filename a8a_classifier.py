@@ -5,7 +5,9 @@ import json
 import math
 import numpy as np
 import os
+
 import tensorflow as tf
+from tensorflow.contrib.session_bundle import exporter
 
 # Define parameters
 flags = tf.app.flags
@@ -30,6 +32,8 @@ flags.DEFINE_integer('steps_to_validate', 100,
                      'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train",
                     "Option mode: train, train_from_scratch, inference")
+flags.DEFINE_string("model_path", "./model/", "indicates training output")
+flags.DEFINE_integer("export_version", 1, "Version number of the model")
 
 FEATURE_SIZE = 124
 LABEL_SIZE = 2
@@ -66,13 +70,12 @@ batch_serialized_example = tf.train.shuffle_batch(
     num_threads=thread_number,
     capacity=capacity,
     min_after_dequeue=min_after_dequeue)
-features = tf.parse_example(
-    batch_serialized_example,
-    features={
-        "label": tf.FixedLenFeature([], tf.float32),
-        "ids": tf.VarLenFeature(tf.int64),
-        "values": tf.VarLenFeature(tf.float32),
-    })
+features = tf.parse_example(batch_serialized_example,
+                            features={
+                                "label": tf.FixedLenFeature([], tf.float32),
+                                "ids": tf.VarLenFeature(tf.int64),
+                                "values": tf.VarLenFeature(tf.float32),
+                            })
 batch_labels = features["label"]
 batch_ids = features["ids"]
 batch_values = features["values"]
@@ -107,6 +110,7 @@ hidden3_units = 10
 hidden4_units = 10
 output_units = LABEL_SIZE
 
+
 def full_connect(inputs, weights_shape, biases_shape):
     with tf.device('/cpu:0'):
         weights = tf.get_variable("weights",
@@ -117,7 +121,9 @@ def full_connect(inputs, weights_shape, biases_shape):
                                  initializer=tf.random_normal_initializer())
     return tf.matmul(inputs, weights) + biases
 
-def sparse_full_connect(sparse_ids, sparse_values, weights_shape, biases_shape):
+
+def sparse_full_connect(sparse_ids, sparse_values, weights_shape,
+                        biases_shape):
     with tf.device('/cpu:0'):
         weights = tf.get_variable("weights",
                                   weights_shape,
@@ -125,17 +131,20 @@ def sparse_full_connect(sparse_ids, sparse_values, weights_shape, biases_shape):
         biases = tf.get_variable("biases",
                                  biases_shape,
                                  initializer=tf.random_normal_initializer())
-    return  tf.nn.embedding_lookup_sparse(weights,
-                                      sparse_ids,
-                                      sparse_values,
-                                      combiner="sum") + biases
+    return tf.nn.embedding_lookup_sparse(
+        weights, sparse_ids, sparse_values,
+        combiner="sum") + biases
+
 
 def full_connect_relu(inputs, weights_shape, biases_shape):
     return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
 
+
 def deep_inference(sparse_ids, sparse_values):
     with tf.variable_scope("layer1"):
-        sparse_layer = sparse_full_connect(sparse_ids, sparse_values, [input_units, hidden1_units], [hidden1_units])
+        sparse_layer = sparse_full_connect(sparse_ids, sparse_values,
+                                           [input_units, hidden1_units],
+                                           [hidden1_units])
         layer = tf.nn.relu(sparse_layer)
     with tf.variable_scope("layer2"):
         layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
@@ -147,7 +156,8 @@ def deep_inference(sparse_ids, sparse_values):
         layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
                                   [hidden4_units])
     with tf.variable_scope("output"):
-        layer = full_connect(layer, [hidden4_units, output_units], [output_units])
+        layer = full_connect(layer, [hidden4_units, output_units],
+                             [output_units])
     return layer
 
 
@@ -156,12 +166,15 @@ def wide_inference(sparse_ids, sparse_values):
     Logistic regression model.
     """
     with tf.variable_scope("logistic_regression"):
-        layer = sparse_full_connect(sparse_ids, sparse_values, [input_units, output_units], [output_units])
+        layer = sparse_full_connect(sparse_ids, sparse_values,
+                                    [input_units, output_units],
+                                    [output_units])
     return layer
 
 
 def wide_and_deep_inference(sparse_ids, sparse_values):
-    return wide_inference(sparse_ids, sparse_values) + deep_inference(sparse_ids, sparse_values)
+    return wide_inference(sparse_ids, sparse_values) + deep_inference(
+        sparse_ids, sparse_values)
 
 
 def inference(sparse_ids, sparse_values):
@@ -281,15 +294,37 @@ with tf.Session() as sess:
                     accuracy_value, auc_value, summary_value = sess.run(
                         [accuracy, auc_op, summary_op])
                     end_time = datetime.datetime.now()
-                    print("[{}] Step: {}, loss: {}, accuracy: {}, auc: {}".format(
-                        end_time - start_time, step, loss_value, accuracy_value,
-                        auc_value))
+                    print(
+                        "[{}] Step: {}, loss: {}, accuracy: {}, auc: {}".format(
+                            end_time - start_time, step, loss_value,
+                            accuracy_value, auc_value))
 
                     writer.add_summary(summary_value, step)
                     saver.save(sess, checkpoint_file, global_step=step)
                     start_time = end_time
         except tf.errors.OutOfRangeError:
             print("Done training after reading all data")
+
+            print("Exporting trained model to {}".format(FLAGS.model_path))
+            model_exporter = exporter.Exporter(saver)
+            model_exporter.init(
+                sess.graph.as_graph_def(),
+                named_graph_signatures={
+                    'inputs':
+                    exporter.generic_signature({"keys": keys_placeholder,
+                                                "index": sparse_index,
+                                                "ids": sparse_ids,
+                                                "values": sparse_values,
+                                                "shape": sparse_shape}),
+                    'outputs':
+                    exporter.generic_signature({"keys": keys,
+                                                "softmax": inference_softmax,
+                                                "prediction": inference_op})
+                })
+            model_exporter.export(FLAGS.model_path,
+                                  tf.constant(FLAGS.export_version), sess)
+            print 'Done exporting!'
+
         finally:
             coord.request_stop()
 
@@ -330,8 +365,11 @@ with tf.Session() as sess:
                            sparse_shape: [ins_num, FEATURE_SIZE]})
 
             end_time = datetime.datetime.now()
-            print("[{}] Inference result: {}".format(end_time - start_time, inference_result))
-            np.savetxt(inference_result_file_name, inference_result, delimiter=",")
+            print("[{}] Inference result: {}".format(end_time - start_time,
+                                                     inference_result))
+            np.savetxt(inference_result_file_name,
+                       inference_result,
+                       delimiter=",")
             print("Save result to file: {}".format(inference_result_file_name))
 
         else:
