@@ -5,13 +5,15 @@ import json
 import math
 import numpy as np
 import os
+
 import tensorflow as tf
+from tensorflow.contrib.session_bundle import exporter
 
 # Define parameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
+flags.DEFINE_integer('epoch_number', 500, 'Number of epochs to run trainer.')
 flags.DEFINE_integer("batch_size", 1024,
                      "indicates batch size in a single gpu, default is 1024")
 flags.DEFINE_integer("validate_batch_size", 1024,
@@ -26,10 +28,14 @@ flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
 flags.DEFINE_string("model", "wide_and_deep",
                     "Model to train, option model: wide, deep, wide_and_deep")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
-flags.DEFINE_integer('steps_to_validate', 100,
+flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train",
                     "Option mode: train, train_from_scratch, inference")
+flags.DEFINE_string("output_path", "./output/", "indicates training output")
+flags.DEFINE_string("model_path", "./model/",
+                    "indicates training output")
+flags.DEFINE_integer("export_version", 1, "Version number of the model.")
 
 FEATURE_SIZE = 9
 LABEL_SIZE = 2
@@ -95,6 +101,7 @@ hidden3_units = 10
 hidden4_units = 10
 output_units = LABEL_SIZE
 
+
 def full_connect(inputs, weights_shape, biases_shape):
   with tf.device('/cpu:0'):
     weights = tf.get_variable("weights",
@@ -105,22 +112,39 @@ def full_connect(inputs, weights_shape, biases_shape):
                              initializer=tf.random_normal_initializer())
   return tf.matmul(inputs, weights) + biases
 
-def full_connect_relu(inputs, weights_shape, biases_shape):
-  return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
+
+def batch_normalization(inputs, output_shape):
+  mean, var = tf.nn.moments(inputs, axes=[0])
+  scale = tf.get_variable("scale",
+                          output_shape,
+                          initializer=tf.random_normal_initializer())
+  shift = tf.get_variable("shift",
+                          output_shape,
+                          initializer=tf.random_normal_initializer())
+  epsilon = 0.001
+  return tf.nn.batch_normalization(inputs, mean, var, shift, scale, epsilon)
+
+
+def full_connect_bn_relu(inputs, weights_shape, biases_shape):
+  layer = full_connect(inputs, weights_shape, biases_shape)
+  layer = batch_normalization(layer, biases_shape)
+  layer = tf.nn.relu(layer)
+  return layer
+
 
 def deep_inference(inputs):
   with tf.variable_scope("layer1"):
-    layer = full_connect_relu(inputs, [input_units, hidden1_units],
-                              [hidden1_units])
+    layer = full_connect_bn_relu(inputs, [input_units, hidden1_units],
+                                 [hidden1_units])
   with tf.variable_scope("layer2"):
-    layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
-                              [hidden2_units])
+    layer = full_connect_bn_relu(layer, [hidden1_units, hidden2_units],
+                                 [hidden2_units])
   with tf.variable_scope("layer3"):
-    layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
-                              [hidden3_units])
+    layer = full_connect_bn_relu(layer, [hidden2_units, hidden3_units],
+                                 [hidden3_units])
   with tf.variable_scope("layer4"):
-    layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
-                              [hidden4_units])
+    layer = full_connect_bn_relu(layer, [hidden3_units, hidden4_units],
+                                 [hidden4_units])
   with tf.variable_scope("output"):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
@@ -217,7 +241,7 @@ tf.scalar_summary('loss', loss)
 tf.scalar_summary('accuracy', accuracy)
 tf.scalar_summary('auc', auc_op)
 saver = tf.train.Saver()
-keys_placeholder = tf.placeholder("float")
+keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
 keys = tf.identity(keys_placeholder)
 tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name,
                                            'features':
@@ -262,6 +286,23 @@ with tf.Session() as sess:
           start_time = end_time
     except tf.errors.OutOfRangeError:
       print("Done training after reading all data")
+      print("Exporting trained model to {}".format(FLAGS.model_path))
+      model_exporter = exporter.Exporter(saver)
+      model_exporter.init(
+          sess.graph.as_graph_def(),
+          named_graph_signatures={
+              'inputs': exporter.generic_signature({"keys": keys_placeholder,
+                                                    "features":
+                                                    inference_features}),
+              'outputs':
+              exporter.generic_signature({"keys": keys,
+                                          "softmax": inference_softmax,
+                                          "prediction": inference_op})
+          })
+      model_exporter.export(FLAGS.model_path,
+                            tf.constant(FLAGS.export_version), sess)
+      print 'Done exporting!'
+
     finally:
       coord.request_stop()
 
@@ -271,7 +312,6 @@ with tf.Session() as sess:
   elif mode == "inference":
     print("Start to run inference")
     start_time = datetime.datetime.now()
-
     '''
     inference_data = np.array(
         [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
@@ -297,7 +337,8 @@ with tf.Session() as sess:
           feed_dict={inference_features: inference_data})
 
       end_time = datetime.datetime.now()
-      print("[{}] Inference result: {}".format(end_time - start_time, inference_result))
+      print("[{}] Inference result: {}".format(end_time - start_time,
+                                               inference_result))
       np.savetxt(inference_result_file_name, inference_result, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
 
