@@ -28,7 +28,9 @@ flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
 flags.DEFINE_string("model", "wide_and_deep",
                     "Model to train, option model: wide, deep, wide_and_deep")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
-flags.DEFINE_float('bn_epsilon', 0.001, 'The epsilon of batch normalization.')
+flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization")
+flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
+flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
@@ -148,6 +150,10 @@ def deep_inference(inputs):
   with tf.variable_scope("layer4"):
     layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
                               [hidden4_units])
+
+  if FLAGS.enable_dropout and FLAGS.mode == "train":
+    layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
+
   with tf.variable_scope("output"):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer

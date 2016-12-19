@@ -25,12 +25,14 @@ flags.DEFINE_string("checkpoint_dir", "./checkpoint/",
                     "indicates the checkpoint dirctory")
 flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
                     "indicates training output")
-flags.DEFINE_string("model", "wide_and_deep",
-                    "Model to train, option model: wide, deep, wide_and_deep")
+flags.DEFINE_string("model", "dnn",
+                    "Model to train, option model: dnn, lr, wide_and_deep")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
 flags.DEFINE_float('bn_epsilon', 0.001, 'The epsilon of batch normalization.')
+flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
+flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
-flags.DEFINE_integer('steps_to_validate', 100,
+flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train", "Option mode: train, inference")
 flags.DEFINE_string("model_path", "./model/", "indicates training output")
@@ -102,9 +104,9 @@ validate_features = tf.parse_example(
         "ids": tf.VarLenFeature(tf.int64),
         "values": tf.VarLenFeature(tf.float32),
     })
-validate_batch_labels = features["label"]
-validate_batch_ids = features["ids"]
-validate_batch_values = features["values"]
+validate_batch_labels = validate_features["label"]
+validate_batch_ids = validate_features["ids"]
+validate_batch_values = validate_features["values"]
 
 # Define the model
 input_units = FEATURE_SIZE
@@ -171,6 +173,10 @@ def deep_inference(sparse_ids, sparse_values):
   with tf.variable_scope("layer4"):
     layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
                               [hidden4_units])
+
+  if FLAGS.enable_dropout and FLAGS.mode == "train":
+    layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
+
   with tf.variable_scope("output"):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
@@ -193,9 +199,9 @@ def wide_and_deep_inference(sparse_ids, sparse_values):
 
 def inference(sparse_ids, sparse_values):
   print("Use the model: {}".format(FLAGS.model))
-  if FLAGS.model == "wide":
+  if FLAGS.model == "lr":
     return wide_inference(sparse_ids, sparse_values)
-  elif FLAGS.model == "deep":
+  elif FLAGS.model == "dnn":
     return deep_inference(sparse_ids, sparse_values)
   elif FLAGS.model == "wide_and_deep":
     return wide_and_deep_inference(sparse_ids, sparse_values)
