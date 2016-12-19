@@ -15,7 +15,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * The general predit client for TensorFlow models.
+ * The general predict client for TensorFlow models.
  */
 public class PredictClient {
     private static final Logger logger = Logger.getLogger(PredictClient.class.getName());
