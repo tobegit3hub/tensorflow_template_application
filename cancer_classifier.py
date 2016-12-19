@@ -32,14 +32,16 @@ flags.DEFINE_float('bn_epsilon', 0.001, 'The epsilon of batch normalization.')
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
-flags.DEFINE_string("mode", "train",
-                    "Option mode: train, train_from_scratch, inference")
+flags.DEFINE_string("mode", "train", "Option mode: train, inference")
 flags.DEFINE_string("output_path", "./output/", "indicates training output")
 flags.DEFINE_string("model_path", "./model/", "indicates training output")
 flags.DEFINE_integer("export_version", 1, "Version number of the model.")
 
 FEATURE_SIZE = 9
 LABEL_SIZE = 2
+TRAIN_TFRECORDS_FILE = "data/cancer_train.csv.tfrecords"
+VALIDATE_TFRECORDS_FILE = "data/cancer_test.csv.tfrecords"
+
 learning_rate = FLAGS.learning_rate
 epoch_number = FLAGS.epoch_number
 thread_number = FLAGS.thread_number
@@ -72,7 +74,7 @@ def read_and_decode(filename_queue):
 
 # Read TFRecords files for training
 filename_queue = tf.train.string_input_producer(
-    tf.train.match_filenames_once("data/cancer_train.csv.tfrecords"),
+    tf.train.match_filenames_once(TRAIN_TFRECORDS_FILE),
     num_epochs=epoch_number)
 label, features = read_and_decode(filename_queue)
 batch_labels, batch_features = tf.train.shuffle_batch(
@@ -84,7 +86,7 @@ batch_labels, batch_features = tf.train.shuffle_batch(
 
 # Read TFRecords file for validatioin
 validate_filename_queue = tf.train.string_input_producer(
-    tf.train.match_filenames_once("data/cancer_test.csv.tfrecords"),
+    tf.train.match_filenames_once(VALIDATE_TFRECORDS_FILE),
     num_epochs=epoch_number)
 validate_label, validate_features = read_and_decode(validate_filename_queue)
 validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
@@ -210,12 +212,18 @@ train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
 tf.get_variable_scope().reuse_variables()
-accuracy_logits = inference(validate_batch_features)
-validate_softmax = tf.nn.softmax(accuracy_logits)
+validate_accuracy_logits = inference(validate_batch_features)
+validate_softmax = tf.nn.softmax(validate_accuracy_logits)
 validate_batch_labels = tf.to_int64(validate_batch_labels)
-correct_prediction = tf.equal(
+validate_correct_prediction = tf.equal(
     tf.argmax(validate_softmax, 1), validate_batch_labels)
-accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
+validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
+                                           tf.float32))
+
+train_accuracy_logits = inference(batch_features)
+train_softmax = tf.nn.softmax(train_accuracy_logits)
+train_correct_prediction = tf.equal(tf.argmax(train_softmax, 1), batch_labels)
+train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
 
 # Compute auc
 validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
@@ -239,7 +247,7 @@ checkpoint_file = checkpoint_dir + "/checkpoint.ckpt"
 steps_to_validate = FLAGS.steps_to_validate
 init_op = tf.initialize_all_variables()
 tf.scalar_summary('loss', loss)
-tf.scalar_summary('accuracy', accuracy)
+tf.scalar_summary('accuracy', validate_accuracy)
 tf.scalar_summary('auc', auc_op)
 saver = tf.train.Saver()
 keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
@@ -258,13 +266,12 @@ with tf.Session() as sess:
   sess.run(init_op)
   sess.run(tf.initialize_local_variables())
 
-  if mode == "train" or mode == "train_from_scratch":
-    if mode != "train_from_scratch":
-      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-      if ckpt and ckpt.model_checkpoint_path:
-        print("Continue training from the model {}".format(
-            ckpt.model_checkpoint_path))
-        saver.restore(sess, ckpt.model_checkpoint_path)
+  if mode == "train":
+    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+    if ckpt and ckpt.model_checkpoint_path:
+      print("Continue training from the model {}".format(
+          ckpt.model_checkpoint_path))
+      saver.restore(sess, ckpt.model_checkpoint_path)
 
     # Get coordinator and run queues to read data
     coord = tf.train.Coordinator()
@@ -274,13 +281,15 @@ with tf.Session() as sess:
     try:
       while not coord.should_stop():
         _, loss_value, step = sess.run([train_op, loss, global_step])
+
         if step % steps_to_validate == 0:
-          accuracy_value, auc_value, summary_value = sess.run(
-              [accuracy, auc_op, summary_op])
+          train_accuracy_value, validate_accuracy_value, auc_value, summary_value = sess.run(
+              [train_accuracy, validate_accuracy, auc_op, summary_op])
           end_time = datetime.datetime.now()
-          print("[{}] Step: {}, loss: {}, accuracy: {}, auc: {}".format(
-              end_time - start_time, step, loss_value, accuracy_value,
-              auc_value))
+          print(
+              "[{}] Step: {}, loss: {}, train accuracy: {}, validate accuray: {}, auc: {}".format(
+                  end_time - start_time, step, loss_value,
+                  train_accuracy_value, validate_accuracy_value, auc_value))
 
           writer.add_summary(summary_value, step)
           saver.save(sess, checkpoint_file, global_step=step)
