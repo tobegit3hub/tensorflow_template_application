@@ -110,14 +110,13 @@ validate_batch_values = validate_features["values"]
 
 # Define the model
 input_units = FEATURE_SIZE
-hidden1_units = 10
-hidden2_units = 10
-hidden3_units = 10
-hidden4_units = 10
+hidden1_units = 128
+hidden2_units = 32
+hidden3_units = 8
 output_units = LABEL_SIZE
 
 
-def full_connect(inputs, weights_shape, biases_shape):
+def full_connect(inputs, weights_shape, biases_shape, is_train=True):
   with tf.device('/cpu:0'):
     weights = tf.get_variable("weights",
                               weights_shape,
@@ -127,7 +126,7 @@ def full_connect(inputs, weights_shape, biases_shape):
                              initializer=tf.random_normal_initializer())
     layer = tf.matmul(inputs, weights) + biases
 
-    if FLAGS.enable_bn:
+    if FLAGS.enable_bn and is_train:
       mean, var = tf.nn.moments(layer, axes=[0])
       scale = tf.get_variable("scale",
                               biases_shape,
@@ -140,8 +139,11 @@ def full_connect(inputs, weights_shape, biases_shape):
   return layer
 
 
-def sparse_full_connect(sparse_ids, sparse_values, weights_shape,
-                        biases_shape):
+def sparse_full_connect(sparse_ids,
+                        sparse_values,
+                        weights_shape,
+                        biases_shape,
+                        is_train=True):
   with tf.device('/cpu:0'):
     weights = tf.get_variable("weights",
                               weights_shape,
@@ -154,35 +156,34 @@ def sparse_full_connect(sparse_ids, sparse_values, weights_shape,
       combiner="sum") + biases
 
 
-def full_connect_relu(inputs, weights_shape, biases_shape):
-  return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape))
+def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
+  return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape,
+                                 is_train))
 
 
-def deep_inference(sparse_ids, sparse_values):
+def deep_inference(sparse_ids, sparse_values, is_train=True):
   with tf.variable_scope("layer1"):
     sparse_layer = sparse_full_connect(sparse_ids, sparse_values,
                                        [input_units, hidden1_units],
-                                       [hidden1_units])
+                                       [hidden1_units], is_train)
     layer = tf.nn.relu(sparse_layer)
   with tf.variable_scope("layer2"):
     layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
-                              [hidden2_units])
+                              [hidden2_units], is_train)
   with tf.variable_scope("layer3"):
     layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
-                              [hidden3_units])
-  with tf.variable_scope("layer4"):
-    layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
-                              [hidden4_units])
+                              [hidden3_units], is_train)
 
-  if FLAGS.enable_dropout and FLAGS.mode == "train":
+  if FLAGS.enable_dropout and is_train:
     layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
 
   with tf.variable_scope("output"):
-    layer = full_connect(layer, [hidden4_units, output_units], [output_units])
+    layer = full_connect(layer, [hidden3_units, output_units], [output_units],
+                         is_train)
   return layer
 
 
-def wide_inference(sparse_ids, sparse_values):
+def wide_inference(sparse_ids, sparse_values, is_train=True):
   """
     Logistic regression model.
     """
@@ -192,25 +193,25 @@ def wide_inference(sparse_ids, sparse_values):
   return layer
 
 
-def wide_and_deep_inference(sparse_ids, sparse_values):
-  return wide_inference(sparse_ids, sparse_values) + deep_inference(
-      sparse_ids, sparse_values)
+def wide_and_deep_inference(sparse_ids, sparse_values, is_train=True):
+  return wide_inference(sparse_ids, sparse_values, is_train) + deep_inference(
+      sparse_ids, sparse_values, is_train)
 
 
-def inference(sparse_ids, sparse_values):
+def inference(sparse_ids, sparse_values, is_train=True):
   print("Use the model: {}".format(FLAGS.model))
   if FLAGS.model == "lr":
-    return wide_inference(sparse_ids, sparse_values)
+    return wide_inference(sparse_ids, sparse_values, is_train)
   elif FLAGS.model == "dnn":
-    return deep_inference(sparse_ids, sparse_values)
+    return deep_inference(sparse_ids, sparse_values, is_train)
   elif FLAGS.model == "wide_and_deep":
-    return wide_and_deep_inference(sparse_ids, sparse_values)
+    return wide_and_deep_inference(sparse_ids, sparse_values, is_train)
   else:
     print("Unknown model, exit now")
     exit(1)
 
 
-logits = inference(batch_ids, batch_values)
+logits = inference(batch_ids, batch_values, True)
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
@@ -243,7 +244,8 @@ train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
 tf.get_variable_scope().reuse_variables()
-validate_accuracy_logits = inference(validate_batch_ids, validate_batch_values)
+validate_accuracy_logits = inference(validate_batch_ids, validate_batch_values,
+                                     False)
 validate_softmax = tf.nn.softmax(validate_accuracy_logits)
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 validate_correct_prediction = tf.equal(
@@ -251,7 +253,7 @@ validate_correct_prediction = tf.equal(
 validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
                                            tf.float32))
 
-train_accuracy_logits = inference(batch_ids, batch_values)
+train_accuracy_logits = inference(batch_ids, batch_values, False)
 train_softmax = tf.nn.softmax(train_accuracy_logits)
 train_correct_prediction = tf.equal(tf.argmax(train_softmax, 1), batch_labels)
 train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
@@ -274,7 +276,7 @@ sparse_values = tf.placeholder(tf.float32)
 sparse_shape = tf.placeholder(tf.int64)
 inference_ids = tf.SparseTensor(sparse_index, sparse_ids, sparse_shape)
 inference_values = tf.SparseTensor(sparse_index, sparse_values, sparse_shape)
-inference_logits = inference(inference_ids, inference_values)
+inference_logits = inference(inference_ids, inference_values, False)
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
 

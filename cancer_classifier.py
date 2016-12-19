@@ -25,8 +25,8 @@ flags.DEFINE_string("checkpoint_dir", "./checkpoint/",
                     "indicates the checkpoint dirctory")
 flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
                     "indicates training output")
-flags.DEFINE_string("model", "wide_and_deep",
-                    "Model to train, option model: wide, deep, wide_and_deep")
+flags.DEFINE_string("model", "dnn",
+                    "Model to train, option model: dnn, lr, wide_and_deep")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
 flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization")
 flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
@@ -100,14 +100,13 @@ validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
 
 # Define the model
 input_units = FEATURE_SIZE
-hidden1_units = 10
-hidden2_units = 10
-hidden3_units = 10
-hidden4_units = 10
+hidden1_units = 128
+hidden2_units = 32
+hidden3_units = 8
 output_units = LABEL_SIZE
 
 
-def full_connect(inputs, weights_shape, biases_shape):
+def full_connect(inputs, weights_shape, biases_shape, is_train=True):
   with tf.device('/cpu:0'):
     weights = tf.get_variable("weights",
                               weights_shape,
@@ -117,7 +116,7 @@ def full_connect(inputs, weights_shape, biases_shape):
                              initializer=tf.random_normal_initializer())
     layer = tf.matmul(inputs, weights) + biases
 
-    if FLAGS.enable_bn:
+    if FLAGS.enable_bn and is_train:
       mean, var = tf.nn.moments(layer, axes=[0])
       scale = tf.get_variable("scale",
                               biases_shape,
@@ -128,38 +127,35 @@ def full_connect(inputs, weights_shape, biases_shape):
       layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
                                         FLAGS.bn_epsilon)
   return layer
-  return tf.matmul(inputs, weights) + biases
 
 
-def full_connect_relu(inputs, weights_shape, biases_shape):
-  layer = full_connect(inputs, weights_shape, biases_shape)
+def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
+  layer = full_connect(inputs, weights_shape, biases_shape, is_train)
   layer = tf.nn.relu(layer)
   return layer
 
 
-def deep_inference(inputs):
+def deep_inference(inputs, is_train=True):
   with tf.variable_scope("layer1"):
     layer = full_connect_relu(inputs, [input_units, hidden1_units],
-                              [hidden1_units])
+                              [hidden1_units], is_train)
   with tf.variable_scope("layer2"):
     layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
-                              [hidden2_units])
+                              [hidden2_units], is_train)
   with tf.variable_scope("layer3"):
     layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
-                              [hidden3_units])
-  with tf.variable_scope("layer4"):
-    layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
-                              [hidden4_units])
+                              [hidden3_units], is_train)
 
-  if FLAGS.enable_dropout and FLAGS.mode == "train":
+  if FLAGS.enable_dropout and is_train:
     layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
 
   with tf.variable_scope("output"):
-    layer = full_connect(layer, [hidden4_units, output_units], [output_units])
+    layer = full_connect(layer, [hidden3_units, output_units], [output_units],
+                         is_train)
   return layer
 
 
-def wide_inference(inputs):
+def wide_inference(inputs, is_train=True):
   """
   Logistic regression model.
   """
@@ -168,24 +164,24 @@ def wide_inference(inputs):
   return layer
 
 
-def wide_and_deep_inference(inputs):
-  return wide_inference(inputs) + deep_inference(inputs)
+def wide_and_deep_inference(inputs, is_train=True):
+  return wide_inference(inputs, is_train) + deep_inference(inputs, is_train)
 
 
-def inference(inputs):
+def inference(inputs, is_train=True):
   print("Use the model: {}".format(FLAGS.model))
-  if FLAGS.model == "wide":
-    return wide_inference(inputs)
-  elif FLAGS.model == "deep":
-    return deep_inference(inputs)
+  if FLAGS.model == "lr":
+    return wide_inference(inputs, is_train)
+  elif FLAGS.model == "dnn":
+    return deep_inference(inputs, is_train)
   elif FLAGS.model == "wide_and_deep":
-    return wide_and_deep_inference(inputs)
+    return wide_and_deep_inference(inputs, is_train)
   else:
     print("Unknown model, exit now")
     exit(1)
 
 
-logits = inference(batch_features)
+logits = inference(batch_features, True)
 batch_labels = tf.to_int64(batch_labels)
 cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                batch_labels)
@@ -218,7 +214,7 @@ train_op = optimizer.minimize(loss, global_step=global_step)
 
 # Compute accuracy
 tf.get_variable_scope().reuse_variables()
-validate_accuracy_logits = inference(validate_batch_features)
+validate_accuracy_logits = inference(validate_batch_features, False)
 validate_softmax = tf.nn.softmax(validate_accuracy_logits)
 validate_batch_labels = tf.to_int64(validate_batch_labels)
 validate_correct_prediction = tf.equal(
@@ -226,7 +222,7 @@ validate_correct_prediction = tf.equal(
 validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
                                            tf.float32))
 
-train_accuracy_logits = inference(batch_features)
+train_accuracy_logits = inference(batch_features, False)
 train_softmax = tf.nn.softmax(train_accuracy_logits)
 train_correct_prediction = tf.equal(tf.argmax(train_softmax, 1), batch_labels)
 train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
@@ -244,7 +240,7 @@ _, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
 
 # Define inference op
 inference_features = tf.placeholder("float", [None, FEATURE_SIZE])
-inference_logits = inference(inference_features)
+inference_logits = inference(inference_features, False)
 inference_softmax = tf.nn.softmax(inference_logits)
 inference_op = tf.argmax(inference_softmax, 1)
 
