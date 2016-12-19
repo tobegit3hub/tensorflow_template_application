@@ -28,6 +28,7 @@ flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
 flags.DEFINE_string("model", "wide_and_deep",
                     "Model to train, option model: wide, deep, wide_and_deep")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
+flags.DEFINE_float('bn_epsilon', 0.001, 'The epsilon of batch normalization.')
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 100,
                      'Steps to validate and print loss')
@@ -120,8 +121,19 @@ def full_connect(inputs, weights_shape, biases_shape):
     biases = tf.get_variable("biases",
                              biases_shape,
                              initializer=tf.random_normal_initializer())
+    layer = tf.matmul(inputs, weights) + biases
 
-  return tf.matmul(inputs, weights) + biases
+    if FLAGS.enable_bn:
+      mean, var = tf.nn.moments(layer, axes=[0])
+      scale = tf.get_variable("scale",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      shift = tf.get_variable("shift",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
+                                        FLAGS.bn_epsilon)
+  return layer
 
 
 def sparse_full_connect(sparse_ids, sparse_values, weights_shape,

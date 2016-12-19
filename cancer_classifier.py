@@ -27,14 +27,15 @@ flags.DEFINE_string("tensorboard_dir", "./tensorboard/",
                     "indicates training output")
 flags.DEFINE_string("model", "wide_and_deep",
                     "Model to train, option model: wide, deep, wide_and_deep")
+flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
+flags.DEFINE_float('bn_epsilon', 0.001, 'The epsilon of batch normalization.')
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
 flags.DEFINE_string("mode", "train",
                     "Option mode: train, train_from_scratch, inference")
 flags.DEFINE_string("output_path", "./output/", "indicates training output")
-flags.DEFINE_string("model_path", "./model/",
-                    "indicates training output")
+flags.DEFINE_string("model_path", "./model/", "indicates training output")
 flags.DEFINE_integer("export_version", 1, "Version number of the model.")
 
 FEATURE_SIZE = 9
@@ -110,41 +111,41 @@ def full_connect(inputs, weights_shape, biases_shape):
     biases = tf.get_variable("biases",
                              biases_shape,
                              initializer=tf.random_normal_initializer())
+    layer = tf.matmul(inputs, weights) + biases
+
+    if FLAGS.enable_bn:
+      mean, var = tf.nn.moments(layer, axes=[0])
+      scale = tf.get_variable("scale",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      shift = tf.get_variable("shift",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
+                                        FLAGS.bn_epsilon)
+  return layer
   return tf.matmul(inputs, weights) + biases
 
 
-def batch_normalization(inputs, output_shape):
-  mean, var = tf.nn.moments(inputs, axes=[0])
-  scale = tf.get_variable("scale",
-                          output_shape,
-                          initializer=tf.random_normal_initializer())
-  shift = tf.get_variable("shift",
-                          output_shape,
-                          initializer=tf.random_normal_initializer())
-  epsilon = 0.001
-  return tf.nn.batch_normalization(inputs, mean, var, shift, scale, epsilon)
-
-
-def full_connect_bn_relu(inputs, weights_shape, biases_shape):
+def full_connect_relu(inputs, weights_shape, biases_shape):
   layer = full_connect(inputs, weights_shape, biases_shape)
-  layer = batch_normalization(layer, biases_shape)
   layer = tf.nn.relu(layer)
   return layer
 
 
 def deep_inference(inputs):
   with tf.variable_scope("layer1"):
-    layer = full_connect_bn_relu(inputs, [input_units, hidden1_units],
-                                 [hidden1_units])
+    layer = full_connect_relu(inputs, [input_units, hidden1_units],
+                              [hidden1_units])
   with tf.variable_scope("layer2"):
-    layer = full_connect_bn_relu(layer, [hidden1_units, hidden2_units],
-                                 [hidden2_units])
+    layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
+                              [hidden2_units])
   with tf.variable_scope("layer3"):
-    layer = full_connect_bn_relu(layer, [hidden2_units, hidden3_units],
-                                 [hidden3_units])
+    layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
+                              [hidden3_units])
   with tf.variable_scope("layer4"):
-    layer = full_connect_bn_relu(layer, [hidden3_units, hidden4_units],
-                                 [hidden4_units])
+    layer = full_connect_relu(layer, [hidden3_units, hidden4_units],
+                              [hidden4_units])
   with tf.variable_scope("output"):
     layer = full_connect(layer, [hidden4_units, output_units], [output_units])
   return layer
