@@ -360,12 +360,15 @@ with tf.Session() as sess:
 
     inference_result_file_name = "./a8a_test_result.libsvm"
     inference_test_file_name = "./data/a8a_test.libsvm"
+    labels = []
     feature_ids = []
     feature_values = []
     feature_index = []
     ins_num = 0
     for line in open(inference_test_file_name, "r"):
       tokens = line.split(" ")
+      labels.append(tokens[0])
+
       feature_num = 0
       for feature in tokens[1:]:
         feature_id, feature_value = feature.split(":")
@@ -380,7 +383,9 @@ with tf.Session() as sess:
     if ckpt and ckpt.model_checkpoint_path:
       print("Use the model {}".format(ckpt.model_checkpoint_path))
       saver.restore(sess, ckpt.model_checkpoint_path)
-      inference_result = sess.run(inference_softmax,
+
+      # Change to inference_softmax if you want the probability
+      inference_result = sess.run(inference_op,
                                   feed_dict={sparse_index: feature_index,
                                              sparse_ids: feature_ids,
                                              sparse_values: feature_values,
@@ -390,6 +395,17 @@ with tf.Session() as sess:
       end_time = datetime.datetime.now()
       print("[{}] Inference result: {}".format(end_time - start_time,
                                                inference_result))
+
+      # Compute accuracy for inference data
+      label_number = len(labels)
+      correct_label_number = 0
+      for i in range(label_number):
+        if int(labels[i]) == int(inference_result[i]):
+          correct_label_number += 1
+      accuracy = float(correct_label_number) / label_number
+      print("The accuracy for inference data: {}".format(accuracy))
+
+      # Save inference result into file
       np.savetxt(inference_result_file_name, inference_result, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
 

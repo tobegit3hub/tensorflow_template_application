@@ -37,7 +37,8 @@ def main():
   stub = prediction_service_pb2.beta_create_PredictionService_stub(channel)
   request = predict_pb2.PredictRequest()
   request.model_spec.name = model_name
-  request.model_spec.version.value = model_version
+  if model_version > 0:
+    request.model_spec.version.value = model_version
   request.inputs['keys'].CopyFrom(keys_tensor_proto)
   request.inputs['features'].CopyFrom(features_tensor_proto)
 
