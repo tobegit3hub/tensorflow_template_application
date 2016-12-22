@@ -383,7 +383,7 @@ with tf.Session() as sess:
       inference_result = sess.run(inference_softmax,
                                   feed_dict={sparse_index: feature_index,
                                              sparse_ids: feature_ids,
-                                             sparse_values: feature_value,
+                                             sparse_values: feature_values,
                                              sparse_shape:
                                              [ins_num, FEATURE_SIZE]})
 
