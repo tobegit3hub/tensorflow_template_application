@@ -5,6 +5,7 @@ import json
 import math
 import numpy as np
 import os
+from sklearn import metrics
 
 import tensorflow as tf
 from tensorflow.contrib.session_bundle import exporter
@@ -367,7 +368,7 @@ with tf.Session() as sess:
     ins_num = 0
     for line in open(inference_test_file_name, "r"):
       tokens = line.split(" ")
-      labels.append(tokens[0])
+      labels.append(int(tokens[0]))
 
       feature_num = 0
       for feature in tokens[1:]:
@@ -384,29 +385,37 @@ with tf.Session() as sess:
       print("Use the model {}".format(ckpt.model_checkpoint_path))
       saver.restore(sess, ckpt.model_checkpoint_path)
 
-      # Change to inference_softmax if you want the probability
-      inference_result = sess.run(inference_op,
-                                  feed_dict={sparse_index: feature_index,
-                                             sparse_ids: feature_ids,
-                                             sparse_values: feature_values,
-                                             sparse_shape:
-                                             [ins_num, FEATURE_SIZE]})
+      prediction, prediction_softmax = sess.run(
+          [inference_op, inference_softmax],
+          feed_dict={sparse_index: feature_index,
+                     sparse_ids: feature_ids,
+                     sparse_values: feature_values,
+                     sparse_shape:
+                     [ins_num, FEATURE_SIZE]})
 
       end_time = datetime.datetime.now()
       print("[{}] Inference result: {}".format(end_time - start_time,
-                                               inference_result))
+                                               prediction))
 
-      # Compute accuracy for inference data
+      # Compute accuracy
       label_number = len(labels)
       correct_label_number = 0
       for i in range(label_number):
-        if int(labels[i]) == int(inference_result[i]):
+        if labels[i] == prediction[i]:
           correct_label_number += 1
       accuracy = float(correct_label_number) / label_number
-      print("The accuracy for inference data: {}".format(accuracy))
+
+      # Compute auc
+      expected_labels = np.array(labels)
+      predict_labels = prediction_softmax[:, 0]
+      fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
+                                               predict_labels,
+                                               pos_label=0)
+      auc = metrics.auc(fpr, tpr)
+      print("For inference data, accuracy: {}, auc: {}".format(accuracy, auc))
 
       # Save inference result into file
-      np.savetxt(inference_result_file_name, inference_result, delimiter=",")
+      np.savetxt(inference_result_file_name, prediction, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
 
     else:
