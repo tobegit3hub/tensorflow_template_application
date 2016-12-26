@@ -276,10 +276,10 @@ def main():
                                                      new_validate_batch_labels)
 
   # Define inference op
-  sparse_index = tf.placeholder(tf.int64)
-  sparse_ids = tf.placeholder(tf.int64)
-  sparse_values = tf.placeholder(tf.float32)
-  sparse_shape = tf.placeholder(tf.int64)
+  sparse_index = tf.placeholder(tf.int64, [None, 2])
+  sparse_ids = tf.placeholder(tf.int64, [None])
+  sparse_values = tf.placeholder(tf.float32, [None])
+  sparse_shape = tf.placeholder(tf.int64, [2])
   inference_ids = tf.SparseTensor(sparse_index, sparse_ids, sparse_shape)
   inference_values = tf.SparseTensor(sparse_index, sparse_values, sparse_shape)
   inference_logits = inference(inference_ids, inference_values, False)
@@ -295,7 +295,7 @@ def main():
   tf.scalar_summary("validate_accuracy", validate_accuracy)
   tf.scalar_summary("validate_auc", validate_auc)
   saver = tf.train.Saver()
-  keys_placeholder = tf.placeholder("float")
+  keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
   keys = tf.identity(keys_placeholder)
 
   # Create session to run
