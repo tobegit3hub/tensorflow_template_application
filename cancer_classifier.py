@@ -360,19 +360,13 @@ def main():
     elif mode == "inference":
       print("Start to run inference")
       start_time = datetime.datetime.now()
-      '''
-      inference_data = np.array(
-          [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
-           (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
-           (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
-           (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
-           (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
-      correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
-      '''
 
-      inference_result_file_name = "./cancer_inference_result.csv"
-      inference_test_file_name = "./data/cancer_inference.csv"
+      inference_result_file_name = "./inference_result.txt"
+      inference_test_file_name = "./data/cancer_test.csv"
+
       inference_data = np.genfromtxt(inference_test_file_name, delimiter=',')
+      inference_data_features = inference_data[:, 0:9]
+      inference_data_labels = inference_data[:, 9]
 
       # Restore wights from model file
       ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
@@ -383,15 +377,32 @@ def main():
         print("No model found, exit now")
         exit(1)
 
-      inference_result = sess.run(
-          #inference_op,
-          inference_softmax,
-          feed_dict={inference_features: inference_data})
+      prediction, prediction_softmax = sess.run(
+          [inference_op, inference_softmax],
+          feed_dict={inference_features: inference_data_features})
 
       end_time = datetime.datetime.now()
       print("[{}] Inference result: {}".format(end_time - start_time,
-                                               inference_result))
-      np.savetxt(inference_result_file_name, inference_result, delimiter=",")
+                                               prediction))
+
+      # Compute accuracy
+      label_number = len(inference_data_labels)
+      correct_label_number = 0
+      for i in range(label_number):
+        if inference_data_labels[i] == prediction[i]:
+          correct_label_number += 1
+      accuracy = float(correct_label_number) / label_number
+
+      # Compute auc
+      expected_labels = np.array(inference_data_labels)
+      predict_labels = prediction_softmax[:, 0]
+      fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
+                                               predict_labels,
+                                               pos_label=0)
+      auc = metrics.auc(fpr, tpr)
+      print("For inference data, accuracy: {}, auc: {}".format(accuracy, auc))
+
+      np.savetxt(inference_result_file_name, prediction, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
 
 
