@@ -5,11 +5,11 @@ import json
 import math
 import numpy as np
 import os
-
+from sklearn import metrics
 import tensorflow as tf
 from tensorflow.contrib.session_bundle import exporter
 
-# Define parameters
+# Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
@@ -34,315 +34,355 @@ flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
-flags.DEFINE_string("mode", "train", "Option mode: train, inference")
+flags.DEFINE_string("mode", "train", "Option mode: train, export, inference")
 flags.DEFINE_string("output_path", "./output/", "indicates training output")
 flags.DEFINE_string("model_path", "./model/", "indicates training output")
 flags.DEFINE_integer("export_version", 1, "Version number of the model.")
 
-FEATURE_SIZE = 9
-LABEL_SIZE = 2
-TRAIN_TFRECORDS_FILE = "data/cancer_train.csv.tfrecords"
-VALIDATE_TFRECORDS_FILE = "data/cancer_test.csv.tfrecords"
 
-learning_rate = FLAGS.learning_rate
-epoch_number = FLAGS.epoch_number
-thread_number = FLAGS.thread_number
-batch_size = FLAGS.batch_size
-validate_batch_size = FLAGS.validate_batch_size
-min_after_dequeue = FLAGS.min_after_dequeue
-capacity = thread_number * batch_size + min_after_dequeue
-mode = FLAGS.mode
-checkpoint_dir = FLAGS.checkpoint_dir
-if not os.path.exists(checkpoint_dir):
-  os.makedirs(checkpoint_dir)
-tensorboard_dir = FLAGS.tensorboard_dir
-if not os.path.exists(tensorboard_dir):
-  os.makedirs(tensorboard_dir)
+def main():
+  # Change these for different models
+  FEATURE_SIZE = 9
+  LABEL_SIZE = 2
+  TRAIN_TFRECORDS_FILE = "data/cancer_train.csv.tfrecords"
+  VALIDATE_TFRECORDS_FILE = "data/cancer_test.csv.tfrecords"
 
+  learning_rate = FLAGS.learning_rate
+  epoch_number = FLAGS.epoch_number
+  thread_number = FLAGS.thread_number
+  batch_size = FLAGS.batch_size
+  validate_batch_size = FLAGS.validate_batch_size
+  min_after_dequeue = FLAGS.min_after_dequeue
+  capacity = thread_number * batch_size + min_after_dequeue
+  mode = FLAGS.mode
+  checkpoint_dir = FLAGS.checkpoint_dir
+  if not os.path.exists(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+  tensorboard_dir = FLAGS.tensorboard_dir
+  if not os.path.exists(tensorboard_dir):
+    os.makedirs(tensorboard_dir)
 
-# Read TFRecords examples from filename queue
-def read_and_decode(filename_queue):
-  reader = tf.TFRecordReader()
-  _, serialized_example = reader.read(filename_queue)
-  features = tf.parse_single_example(
-      serialized_example,
-      features={
-          "label": tf.FixedLenFeature([], tf.float32),
-          "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
-      })
-  label = features["label"]
-  features = features["features"]
-  return label, features
+  def read_and_decode(filename_queue):
+    reader = tf.TFRecordReader()
+    _, serialized_example = reader.read(filename_queue)
+    features = tf.parse_single_example(serialized_example,
+                                       features={
+                                           "label": tf.FixedLenFeature(
+                                               [], tf.float32),
+                                           "features": tf.FixedLenFeature(
+                                               [FEATURE_SIZE], tf.float32),
+                                       })
+    label = features["label"]
+    features = features["features"]
+    return label, features
 
-# Read TFRecords files for training
-filename_queue = tf.train.string_input_producer(
-    tf.train.match_filenames_once(TRAIN_TFRECORDS_FILE),
-    num_epochs=epoch_number)
-label, features = read_and_decode(filename_queue)
-batch_labels, batch_features = tf.train.shuffle_batch(
-    [label, features],
-    batch_size=batch_size,
-    num_threads=thread_number,
-    capacity=capacity,
-    min_after_dequeue=min_after_dequeue)
+  # Read TFRecords files for training
+  filename_queue = tf.train.string_input_producer(
+      tf.train.match_filenames_once(TRAIN_TFRECORDS_FILE),
+      num_epochs=epoch_number)
+  label, features = read_and_decode(filename_queue)
+  batch_labels, batch_features = tf.train.shuffle_batch(
+      [label, features],
+      batch_size=batch_size,
+      num_threads=thread_number,
+      capacity=capacity,
+      min_after_dequeue=min_after_dequeue)
 
-# Read TFRecords file for validatioin
-validate_filename_queue = tf.train.string_input_producer(
-    tf.train.match_filenames_once(VALIDATE_TFRECORDS_FILE),
-    num_epochs=epoch_number)
-validate_label, validate_features = read_and_decode(validate_filename_queue)
-validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
-    [validate_label, validate_features],
-    batch_size=validate_batch_size,
-    num_threads=thread_number,
-    capacity=capacity,
-    min_after_dequeue=min_after_dequeue)
+  # Read TFRecords file for validatioin
+  validate_filename_queue = tf.train.string_input_producer(
+      tf.train.match_filenames_once(VALIDATE_TFRECORDS_FILE),
+      num_epochs=epoch_number)
+  validate_label, validate_features = read_and_decode(validate_filename_queue)
+  validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
+      [validate_label, validate_features],
+      batch_size=validate_batch_size,
+      num_threads=thread_number,
+      capacity=capacity,
+      min_after_dequeue=min_after_dequeue)
 
-# Define the model
-input_units = FEATURE_SIZE
-hidden1_units = 128
-hidden2_units = 32
-hidden3_units = 8
-output_units = LABEL_SIZE
+  # Define the model
+  input_units = FEATURE_SIZE
+  hidden1_units = 128
+  hidden2_units = 32
+  hidden3_units = 8
+  output_units = LABEL_SIZE
 
+  def full_connect(inputs, weights_shape, biases_shape, is_train=True):
+    with tf.device('/cpu:0'):
+      weights = tf.get_variable("weights",
+                                weights_shape,
+                                initializer=tf.random_normal_initializer())
+      biases = tf.get_variable("biases",
+                               biases_shape,
+                               initializer=tf.random_normal_initializer())
+      layer = tf.matmul(inputs, weights) + biases
 
-def full_connect(inputs, weights_shape, biases_shape, is_train=True):
-  with tf.device('/cpu:0'):
-    weights = tf.get_variable("weights",
-                              weights_shape,
-                              initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases",
-                             biases_shape,
-                             initializer=tf.random_normal_initializer())
-    layer = tf.matmul(inputs, weights) + biases
+      if FLAGS.enable_bn and is_train:
+        mean, var = tf.nn.moments(layer, axes=[0])
+        scale = tf.get_variable("scale",
+                                biases_shape,
+                                initializer=tf.random_normal_initializer())
+        shift = tf.get_variable("shift",
+                                biases_shape,
+                                initializer=tf.random_normal_initializer())
+        layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
+                                          FLAGS.bn_epsilon)
+    return layer
 
-    if FLAGS.enable_bn and is_train:
-      mean, var = tf.nn.moments(layer, axes=[0])
-      scale = tf.get_variable("scale",
-                              biases_shape,
-                              initializer=tf.random_normal_initializer())
-      shift = tf.get_variable("shift",
-                              biases_shape,
-                              initializer=tf.random_normal_initializer())
-      layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
-                                        FLAGS.bn_epsilon)
-  return layer
+  def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
+    layer = full_connect(inputs, weights_shape, biases_shape, is_train)
+    layer = tf.nn.relu(layer)
+    return layer
 
+  def dnn_inference(inputs, is_train=True):
+    with tf.variable_scope("layer1"):
+      layer = full_connect_relu(inputs, [input_units, hidden1_units],
+                                [hidden1_units], is_train)
+    with tf.variable_scope("layer2"):
+      layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
+                                [hidden2_units], is_train)
+    with tf.variable_scope("layer3"):
+      layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
+                                [hidden3_units], is_train)
 
-def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
-  layer = full_connect(inputs, weights_shape, biases_shape, is_train)
-  layer = tf.nn.relu(layer)
-  return layer
+    if FLAGS.enable_dropout and is_train:
+      layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
 
+    with tf.variable_scope("output"):
+      layer = full_connect(layer, [hidden3_units, output_units],
+                           [output_units], is_train)
+    return layer
 
-def deep_inference(inputs, is_train=True):
-  with tf.variable_scope("layer1"):
-    layer = full_connect_relu(inputs, [input_units, hidden1_units],
-                              [hidden1_units], is_train)
-  with tf.variable_scope("layer2"):
-    layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
-                              [hidden2_units], is_train)
-  with tf.variable_scope("layer3"):
-    layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
-                              [hidden3_units], is_train)
+  def lr_inference(inputs, is_train=True):
+    with tf.variable_scope("logistic_regression"):
+      layer = full_connect(inputs, [input_units, output_units], [output_units])
+    return layer
 
-  if FLAGS.enable_dropout and is_train:
-    layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
+  def wide_and_deep_inference(inputs, is_train=True):
+    return lr_inference(inputs, is_train) + dnn_inference(inputs, is_train)
 
-  with tf.variable_scope("output"):
-    layer = full_connect(layer, [hidden3_units, output_units], [output_units],
-                         is_train)
-  return layer
+  def inference(inputs, is_train=True):
+    print("Use the model: {}".format(FLAGS.model))
+    if FLAGS.model == "lr":
+      return lr_inference(inputs, is_train)
+    elif FLAGS.model == "dnn":
+      return dnn_inference(inputs, is_train)
+    elif FLAGS.model == "wide_and_deep":
+      return wide_and_deep_inference(inputs, is_train)
+    else:
+      print("Unknown model, exit now")
+      exit(1)
 
+  logits = inference(batch_features, True)
+  batch_labels = tf.to_int64(batch_labels)
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
+                                                                 batch_labels)
+  loss = tf.reduce_mean(cross_entropy, name='loss')
 
-def wide_inference(inputs, is_train=True):
-  """
-  Logistic regression model.
-  """
-  with tf.variable_scope("logistic_regression"):
-    layer = full_connect(inputs, [input_units, output_units], [output_units])
-  return layer
-
-
-def wide_and_deep_inference(inputs, is_train=True):
-  return wide_inference(inputs, is_train) + deep_inference(inputs, is_train)
-
-
-def inference(inputs, is_train=True):
-  print("Use the model: {}".format(FLAGS.model))
-  if FLAGS.model == "lr":
-    return wide_inference(inputs, is_train)
-  elif FLAGS.model == "dnn":
-    return deep_inference(inputs, is_train)
-  elif FLAGS.model == "wide_and_deep":
-    return wide_and_deep_inference(inputs, is_train)
+  print("Use the optimizer: {}".format(FLAGS.optimizer))
+  if FLAGS.optimizer == "sgd":
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
+  elif FLAGS.optimizer == "adadelta":
+    optimizer = tf.train.AdadeltaOptimizer(learning_rate)
+  elif FLAGS.optimizer == "adagrad":
+    optimizer = tf.train.AdagradOptimizer(learning_rate)
+  elif FLAGS.optimizer == "adam":
+    optimizer = tf.train.AdamOptimizer(learning_rate)
+  elif FLAGS.optimizer == "ftrl":
+    optimizer = tf.train.FtrlOptimizer(learning_rate)
+  elif FLAGS.optimizer == "rmsprop":
+    optimizer = tf.train.RMSPropOptimizer(learning_rate)
   else:
-    print("Unknown model, exit now")
+    print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
     exit(1)
 
+  with tf.device("/cpu:0"):
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+  train_op = optimizer.minimize(loss, global_step=global_step)
 
-logits = inference(batch_features, True)
-batch_labels = tf.to_int64(batch_labels)
-cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
-                                                               batch_labels)
-loss = tf.reduce_mean(cross_entropy, name='loss')
+  tf.get_variable_scope().reuse_variables()
 
-print("Use the optimizer: {}".format(FLAGS.optimizer))
-if FLAGS.optimizer == "sgd":
-  optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-elif FLAGS.optimizer == "momentum":
-  # optimizer = tf.train.MomentumOptimizer(learning_rate)
-  print("Not support optimizer: {} yet, exit now".format(FLAGS.optimizer))
-  exit(1)
-elif FLAGS.optimizer == "adadelta":
-  optimizer = tf.train.AdadeltaOptimizer(learning_rate)
-elif FLAGS.optimizer == "adagrad":
-  optimizer = tf.train.AdagradOptimizer(learning_rate)
-elif FLAGS.optimizer == "adam":
-  optimizer = tf.train.AdamOptimizer(learning_rate)
-elif FLAGS.optimizer == "ftrl":
-  optimizer = tf.train.FtrlOptimizer(learning_rate)
-elif FLAGS.optimizer == "rmsprop":
-  optimizer = tf.train.RMSPropOptimizer(learning_rate)
-else:
-  print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
-  exit(1)
+  # Define accuracy op for train data
+  train_accuracy_logits = inference(batch_features, False)
+  train_softmax = tf.nn.softmax(train_accuracy_logits)
+  train_correct_prediction = tf.equal(
+      tf.argmax(train_softmax, 1), batch_labels)
+  train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction,
+                                          tf.float32))
 
-with tf.device("/cpu:0"):
-  global_step = tf.Variable(0, name='global_step', trainable=False)
-train_op = optimizer.minimize(loss, global_step=global_step)
+  # Define auc op for validate data
+  batch_labels = tf.cast(batch_labels, tf.int32)
+  sparse_labels = tf.reshape(batch_labels, [-1, 1])
+  derived_size = tf.shape(batch_labels)[0]
+  indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
+  concated = tf.concat(1, [indices, sparse_labels])
+  outshape = tf.pack([derived_size, LABEL_SIZE])
+  new_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
+  _, train_auc = tf.contrib.metrics.streaming_auc(train_softmax,
+                                                  new_batch_labels)
 
-# Compute accuracy
-tf.get_variable_scope().reuse_variables()
-validate_accuracy_logits = inference(validate_batch_features, False)
-validate_softmax = tf.nn.softmax(validate_accuracy_logits)
-validate_batch_labels = tf.to_int64(validate_batch_labels)
-validate_correct_prediction = tf.equal(
-    tf.argmax(validate_softmax, 1), validate_batch_labels)
-validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
-                                           tf.float32))
+  # Define accuracy op for validate data
+  validate_accuracy_logits = inference(validate_batch_features, False)
+  validate_softmax = tf.nn.softmax(validate_accuracy_logits)
+  validate_batch_labels = tf.to_int64(validate_batch_labels)
+  validate_correct_prediction = tf.equal(
+      tf.argmax(validate_softmax, 1), validate_batch_labels)
+  validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
+                                             tf.float32))
 
-train_accuracy_logits = inference(batch_features, False)
-train_softmax = tf.nn.softmax(train_accuracy_logits)
-train_correct_prediction = tf.equal(tf.argmax(train_softmax, 1), batch_labels)
-train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction, tf.float32))
+  # Define auc op for validate data
+  validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
+  sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
+  derived_size = tf.shape(validate_batch_labels)[0]
+  indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
+  concated = tf.concat(1, [indices, sparse_labels])
+  outshape = tf.pack([derived_size, LABEL_SIZE])
+  new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
+  _, validate_auc = tf.contrib.metrics.streaming_auc(validate_softmax,
+                                                     new_validate_batch_labels)
 
-# Compute auc
-validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
-sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
-derived_size = tf.shape(validate_batch_labels)[0]
-indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-concated = tf.concat(1, [indices, sparse_labels])
-outshape = tf.pack([derived_size, LABEL_SIZE])
-new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
-_, auc_op = tf.contrib.metrics.streaming_auc(validate_softmax,
-                                             new_validate_batch_labels)
+  # Define inference op
+  inference_features = tf.placeholder("float", [None, FEATURE_SIZE])
+  inference_logits = inference(inference_features, False)
+  inference_softmax = tf.nn.softmax(inference_logits)
+  inference_op = tf.argmax(inference_softmax, 1)
 
-# Define inference op
-inference_features = tf.placeholder("float", [None, FEATURE_SIZE])
-inference_logits = inference(inference_features, False)
-inference_softmax = tf.nn.softmax(inference_logits)
-inference_op = tf.argmax(inference_softmax, 1)
+  # Initialize saver and summary
+  checkpoint_file = checkpoint_dir + "/checkpoint.ckpt"
+  steps_to_validate = FLAGS.steps_to_validate
+  init_op = tf.initialize_all_variables()
+  tf.scalar_summary("loss", loss)
+  tf.scalar_summary("train_accuracy", train_accuracy)
+  tf.scalar_summary("train_auc", train_auc)
+  tf.scalar_summary("validate_accuracy", validate_accuracy)
+  tf.scalar_summary("validate_auc", validate_auc)
+  saver = tf.train.Saver()
+  keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
+  keys = tf.identity(keys_placeholder)
+  tf.add_to_collection("inputs",
+                       json.dumps({'key': keys_placeholder.name,
+                                   'features': inference_features.name}))
+  tf.add_to_collection("outputs",
+                       json.dumps({'key': keys.name,
+                                   'softmax': inference_softmax.name,
+                                   'prediction': inference_op.name}))
 
-# Initialize saver and summary
-checkpoint_file = checkpoint_dir + "/checkpoint.ckpt"
-steps_to_validate = FLAGS.steps_to_validate
-init_op = tf.initialize_all_variables()
-tf.scalar_summary('loss', loss)
-tf.scalar_summary('accuracy', validate_accuracy)
-tf.scalar_summary('auc', auc_op)
-saver = tf.train.Saver()
-keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
-keys = tf.identity(keys_placeholder)
-tf.add_to_collection("inputs", json.dumps({'key': keys_placeholder.name,
-                                           'features':
-                                           inference_features.name}))
-tf.add_to_collection("outputs", json.dumps({'key': keys.name,
-                                            'softmax': inference_softmax.name,
-                                            'prediction': inference_op.name}))
+  # Create session to run
+  with tf.Session() as sess:
+    summary_op = tf.merge_all_summaries()
+    writer = tf.train.SummaryWriter(tensorboard_dir, sess.graph)
+    sess.run(init_op)
+    sess.run(tf.initialize_local_variables())
 
-# Create session to run graph
-with tf.Session() as sess:
-  summary_op = tf.merge_all_summaries()
-  writer = tf.train.SummaryWriter(tensorboard_dir, sess.graph)
-  sess.run(init_op)
-  sess.run(tf.initialize_local_variables())
+    if mode == "train":
+      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+      if ckpt and ckpt.model_checkpoint_path:
+        print("Continue training from the model {}".format(
+            ckpt.model_checkpoint_path))
+        saver.restore(sess, ckpt.model_checkpoint_path)
 
-  if mode == "train":
-    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-    if ckpt and ckpt.model_checkpoint_path:
-      print("Continue training from the model {}".format(
-          ckpt.model_checkpoint_path))
-      saver.restore(sess, ckpt.model_checkpoint_path)
+      # Get coordinator and run queues to read data
+      coord = tf.train.Coordinator()
+      threads = tf.train.start_queue_runners(coord=coord, sess=sess)
 
-    # Get coordinator and run queues to read data
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord, sess=sess)
+      start_time = datetime.datetime.now()
+      try:
+        while not coord.should_stop():
+          _, loss_value, step = sess.run([train_op, loss, global_step])
 
-    start_time = datetime.datetime.now()
-    try:
-      while not coord.should_stop():
-        _, loss_value, step = sess.run([train_op, loss, global_step])
+          if step % steps_to_validate == 0:
+            train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
+                [train_accuracy, train_auc, validate_accuracy, validate_auc,
+                 summary_op])
 
-        if step % steps_to_validate == 0:
-          train_accuracy_value, validate_accuracy_value, auc_value, summary_value = sess.run(
-              [train_accuracy, validate_accuracy, auc_op, summary_op])
-          end_time = datetime.datetime.now()
-          print(
-              "[{}] Step: {}, loss: {}, train accuracy: {}, validate accuray: {}, auc: {}".format(
-                  end_time - start_time, step, loss_value,
-                  train_accuracy_value, validate_accuracy_value, auc_value))
+            end_time = datetime.datetime.now()
+            print(
+                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".format(
+                    end_time - start_time, step, loss_value,
+                    train_accuracy_value, train_auc_value,
+                    validate_accuracy_value, validate_auc_value))
 
-          writer.add_summary(summary_value, step)
-          saver.save(sess, checkpoint_file, global_step=step)
-          start_time = end_time
-    except tf.errors.OutOfRangeError:
-      print("Done training after reading all data")
+            writer.add_summary(summary_value, step)
+            saver.save(sess, checkpoint_file, global_step=step)
+            start_time = end_time
+      except tf.errors.OutOfRangeError:
+        print("Done training after reading all data")
+        print("Exporting trained model to {}".format(FLAGS.model_path))
+        model_exporter = exporter.Exporter(saver)
+        model_exporter.init(sess.graph.as_graph_def(),
+                            named_graph_signatures={
+                                'inputs': exporter.generic_signature(
+                                    {"keys": keys_placeholder,
+                                     "features": inference_features}),
+                                'outputs': exporter.generic_signature(
+                                    {"keys": keys,
+                                     "softmax": inference_softmax,
+                                     "prediction": inference_op})
+                            })
+        model_exporter.export(FLAGS.model_path,
+                              tf.constant(FLAGS.export_version), sess)
+        print 'Done exporting!'
+
+      finally:
+        coord.request_stop()
+
+      # Wait for threads to exit
+      coord.join(threads)
+
+    elif mode == "export":
+      print("Start to export model directly")
+
+      # Load the checkpoint files
+      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+      if ckpt and ckpt.model_checkpoint_path:
+        print("Load the model from {}".format(ckpt.model_checkpoint_path))
+        saver.restore(sess, ckpt.model_checkpoint_path)
+      else:
+        print("No checkpoint found, exit now")
+        exit(1)
+
+      # Export the model files
       print("Exporting trained model to {}".format(FLAGS.model_path))
       model_exporter = exporter.Exporter(saver)
-      model_exporter.init(
-          sess.graph.as_graph_def(),
-          named_graph_signatures={
-              'inputs': exporter.generic_signature({"keys": keys_placeholder,
-                                                    "features":
-                                                    inference_features}),
-              'outputs':
-              exporter.generic_signature({"keys": keys,
-                                          "softmax": inference_softmax,
-                                          "prediction": inference_op})
-          })
+      model_exporter.init(sess.graph.as_graph_def(),
+                          named_graph_signatures={
+                              'inputs': exporter.generic_signature(
+                                  {"keys": keys_placeholder,
+                                   "features": inference_features}),
+                              'outputs': exporter.generic_signature(
+                                  {"keys": keys,
+                                   "softmax": inference_softmax,
+                                   "prediction": inference_op})
+                          })
       model_exporter.export(FLAGS.model_path,
                             tf.constant(FLAGS.export_version), sess)
-      print 'Done exporting!'
 
-    finally:
-      coord.request_stop()
+    elif mode == "inference":
+      print("Start to run inference")
+      start_time = datetime.datetime.now()
+      '''
+      inference_data = np.array(
+          [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
+           (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
+           (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
+           (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
+           (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
+      correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
+      '''
 
-    # Wait for threads to exit
-    coord.join(threads)
+      inference_result_file_name = "./cancer_inference_result.csv"
+      inference_test_file_name = "./data/cancer_inference.csv"
+      inference_data = np.genfromtxt(inference_test_file_name, delimiter=',')
 
-  elif mode == "inference":
-    print("Start to run inference")
-    start_time = datetime.datetime.now()
-    '''
-    inference_data = np.array(
-        [(10, 10, 10, 8, 6, 1, 8, 9, 1), (6, 2, 1, 1, 1, 1, 7, 1, 1),
-         (2, 5, 3, 3, 6, 7, 7, 5, 1), (10, 4, 3, 1, 3, 3, 6, 5, 2),
-         (6, 10, 10, 2, 8, 10, 7, 3, 3), (5, 6, 5, 6, 10, 1, 3, 1, 1),
-         (1, 1, 1, 1, 2, 1, 2, 1, 2), (3, 7, 7, 4, 4, 9, 4, 8, 1),
-         (1, 1, 1, 1, 2, 1, 2, 1, 1), (4, 1, 1, 3, 2, 1, 3, 1, 1)])
-    correct_labels = [1, 0, 1, 1, 1, 1, 0, 1, 0, 0]
-    '''
+      # Restore wights from model file
+      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
+      if ckpt and ckpt.model_checkpoint_path:
+        print("Use the model {}".format(ckpt.model_checkpoint_path))
+        saver.restore(sess, ckpt.model_checkpoint_path)
+      else:
+        print("No model found, exit now")
+        exit(1)
 
-    inference_result_file_name = "./cancer_inference_result.csv"
-    inference_test_file_name = "./data/cancer_inference.csv"
-    inference_data = np.genfromtxt(inference_test_file_name, delimiter=',')
-
-    # Restore wights from model file
-    ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-    if ckpt and ckpt.model_checkpoint_path:
-      print("Use the model {}".format(ckpt.model_checkpoint_path))
-      saver.restore(sess, ckpt.model_checkpoint_path)
       inference_result = sess.run(
           #inference_op,
           inference_softmax,
@@ -354,6 +394,6 @@ with tf.Session() as sess:
       np.savetxt(inference_result_file_name, inference_result, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
 
-    else:
-      print("No model found, exit now")
-      exit(1)
+
+if __name__ == "__main__":
+  main()
