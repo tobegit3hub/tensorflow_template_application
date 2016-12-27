@@ -343,7 +343,7 @@ def main():
             sess.graph.as_graph_def(),
             named_graph_signatures={
                 'inputs': exporter.generic_signature({"keys": keys_placeholder,
-                                                      "index": sparse_index,
+                                                      "indexs": sparse_index,
                                                       "ids": sparse_ids,
                                                       "values": sparse_values,
                                                       "shape": sparse_shape}),
@@ -379,7 +379,7 @@ def main():
           sess.graph.as_graph_def(),
           named_graph_signatures={
               'inputs': exporter.generic_signature({"keys": keys_placeholder,
-                                                    "index": sparse_index,
+                                                    "indexs": sparse_index,
                                                     "ids": sparse_ids,
                                                     "values": sparse_values,
                                                     "shape": sparse_shape}),
