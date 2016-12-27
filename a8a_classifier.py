@@ -395,7 +395,7 @@ def main():
       print("Start to run inference")
       start_time = datetime.datetime.now()
 
-      inference_result_file_name = "./a8a_test_result.libsvm"
+      inference_result_file_name = "./inference_result.txt"
       inference_test_file_name = "./data/a8a_test.libsvm"
       labels = []
       feature_ids = []
