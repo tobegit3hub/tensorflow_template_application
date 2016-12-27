@@ -6,8 +6,15 @@ TensorFlow serving is the gRPC service for general TensorFlow models. We can imp
 
 ## Usage
 
-1. Export the TensorFlow models.
-2. Run with `./predict_client.py --host 127.0.0.1 --port 9000 --model_name cancer --model_version 1`
+```
+./predict_client.py --host 127.0.0.1 --port 9000 --model_name cancer --model_version 1
+```
+
+For sparse data, you can run with this command.
+
+```
+./sparse_predict_client.py --host 127.0.0.1 --port 9000 --model_name sparse --model_version 1
+```
 
 You can use `cloudml` to predict with json file. Notice that `cloudml` is not public yet.
 

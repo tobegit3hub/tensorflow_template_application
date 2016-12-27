@@ -182,7 +182,7 @@ public class SparsePredictClient {
         // Generate shape TensorProto
         // Example: [3, 124]
         long[] shapeTensorData = new long[]{
-                3, 124
+                2, 124
         };
 
         TensorProto.Builder shapeTensorBuilder = TensorProto.newBuilder();
