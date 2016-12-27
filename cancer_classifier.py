@@ -13,7 +13,7 @@ from tensorflow.contrib.session_bundle import exporter
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('epoch_number', 500, 'Number of epochs to run trainer.')
+flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
 flags.DEFINE_integer("batch_size", 1024,
                      "indicates batch size in a single gpu, default is 1024")
 flags.DEFINE_integer("validate_batch_size", 1024,
