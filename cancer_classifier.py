@@ -249,6 +249,7 @@ def main():
 
   # Initialize saver and summary
   checkpoint_file = checkpoint_dir + "/checkpoint.ckpt"
+  latest_checkpoint = tf.train.latest_checkpoint(checkpoint_dir)
   steps_to_validate = FLAGS.steps_to_validate
   init_op = tf.initialize_all_variables()
   tf.scalar_summary("loss", loss)
@@ -275,11 +276,9 @@ def main():
     sess.run(tf.initialize_local_variables())
 
     if mode == "train":
-      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-      if ckpt and ckpt.model_checkpoint_path:
-        print("Continue training from the model {}".format(
-            ckpt.model_checkpoint_path))
-        saver.restore(sess, ckpt.model_checkpoint_path)
+      if latest_checkpoint:
+        print("Load the checkpoint from {}".format(latest_checkpoint))
+        saver.restore(sess, latest_checkpoint)
 
       # Get coordinator and run queues to read data
       coord = tf.train.Coordinator()
@@ -333,10 +332,9 @@ def main():
       print("Start to export model directly")
 
       # Load the checkpoint files
-      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-      if ckpt and ckpt.model_checkpoint_path:
-        print("Load the model from {}".format(ckpt.model_checkpoint_path))
-        saver.restore(sess, ckpt.model_checkpoint_path)
+      if latest_checkpoint:
+        print("Load the checkpoint from {}".format(latest_checkpoint))
+        saver.restore(sess, latest_checkpoint)
       else:
         print("No checkpoint found, exit now")
         exit(1)
@@ -369,10 +367,9 @@ def main():
       inference_data_labels = inference_data[:, 9]
 
       # Restore wights from model file
-      ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
-      if ckpt and ckpt.model_checkpoint_path:
-        print("Use the model {}".format(ckpt.model_checkpoint_path))
-        saver.restore(sess, ckpt.model_checkpoint_path)
+      if latest_checkpoint:
+        print("Load the checkpoint from {}".format(latest_checkpoint))
+        saver.restore(sess, latest_checkpoint)
       else:
         print("No model found, exit now")
         exit(1)
