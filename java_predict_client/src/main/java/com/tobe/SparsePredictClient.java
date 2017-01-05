@@ -3,6 +3,7 @@ package com.tobe;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.StatusRuntimeException;
+import io.grpc.netty.NettyChannelBuilder;
 import org.tensorflow.framework.DataType;
 import org.tensorflow.framework.TensorProto;
 import org.tensorflow.framework.TensorShapeProto;
@@ -24,7 +25,8 @@ public class SparsePredictClient {
 
     // Initialize gRPC client
     public SparsePredictClient(String host, int port) {
-        channel = ManagedChannelBuilder.forAddress(host, port)
+        //channel = ManagedChannelBuilder.forAddress(host, port)
+        channel = NettyChannelBuilder.forAddress(host, port)
                 // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
                 // needing certificates.
                 .usePlaintext(true)
