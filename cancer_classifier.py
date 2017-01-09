@@ -31,6 +31,8 @@ flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
 flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization")
 flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
 flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
+flags.DEFINE_boolean("enable_lr_decay", False, "Enable learning rate decay")
+flags.DEFINE_float("lr_decay_rate", 0.96, "Learning rate decay rate")
 flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
 flags.DEFINE_integer('steps_to_validate', 10,
                      'Steps to validate and print loss')
@@ -47,7 +49,6 @@ def main():
   TRAIN_TFRECORDS_FILE = "data/cancer_train.csv.tfrecords"
   VALIDATE_TFRECORDS_FILE = "data/cancer_test.csv.tfrecords"
 
-  learning_rate = FLAGS.learning_rate
   epoch_number = FLAGS.epoch_number
   thread_number = FLAGS.thread_number
   batch_size = FLAGS.batch_size
@@ -179,6 +180,20 @@ def main():
                                                                  batch_labels)
   loss = tf.reduce_mean(cross_entropy, name='loss')
 
+  with tf.device("/cpu:0"):
+    global_step = tf.Variable(0, name='global_step', trainable=False)
+
+  if FLAGS.enable_lr_decay:
+    print("Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
+    starter_learning_rate = FLAGS.learning_rate
+    learning_rate = tf.train.exponential_decay(starter_learning_rate,
+                                               global_step,
+                                               100000,
+                                               FLAGS.lr_decay_rate,
+                                               staircase=True)
+  else:
+    learning_rate = FLAGS.learning_rate
+
   print("Use the optimizer: {}".format(FLAGS.optimizer))
   if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
@@ -196,8 +211,6 @@ def main():
     print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
     exit(1)
 
-  with tf.device("/cpu:0"):
-    global_step = tf.Variable(0, name='global_step', trainable=False)
   train_op = optimizer.minimize(loss, global_step=global_step)
 
   tf.get_variable_scope().reuse_variables()
