@@ -12,6 +12,13 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
+flags.DEFINE_string("train_tfrecords_path", "data/a8a_train.libsvm.tfrecords",
+                    "Path of train TFRecords files")
+flags.DEFINE_string("validate_tfrecords_path",
+                    "data/a8a_test.libsvm.tfrecords",
+                    "Path of validate TFRecords files")
+flags.DEFINE_integer("feature_size", 124, "Number of feature size")
+flags.DEFINE_integer("label_size", 2, "Number of label size")
 flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
 flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
 flags.DEFINE_integer("batch_size", 1024,
@@ -43,11 +50,10 @@ flags.DEFINE_integer("export_version", 1, "Version number of the model")
 
 def main():
   # Change these for different models
-  FEATURE_SIZE = 124
-  LABEL_SIZE = 2
-  TRAIN_TFRECORDS_FILE = "data/a8a_train.libsvm.tfrecords"
-  VALIDATE_TFRECORDS_FILE = "data/a8a_test.libsvm.tfrecords"
-
+  FEATURE_SIZE = FLAGS.feature_size
+  LABEL_SIZE = FLAGS.label_size
+  TRAIN_TFRECORDS_FILE = FLAGS.train_tfrecords_path
+  VALIDATE_TFRECORDS_FILE = FLAGS.validate_tfrecords_path
   learning_rate = FLAGS.learning_rate
   epoch_number = FLAGS.epoch_number
   thread_number = FLAGS.thread_number
@@ -227,10 +233,6 @@ def main():
   print("Use the optimizer: {}".format(FLAGS.optimizer))
   if FLAGS.optimizer == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-  elif FLAGS.optimizer == "momentum":
-    # optimizer = tf.train.MomentumOptimizer(learning_rate)
-    print("Not support optimizer: {} yet, exit now".format(FLAGS.optimizer))
-    exit(1)
   elif FLAGS.optimizer == "adadelta":
     optimizer = tf.train.AdadeltaOptimizer(learning_rate)
   elif FLAGS.optimizer == "adagrad":
@@ -349,7 +351,6 @@ def main():
             saver.save(sess, checkpoint_file, global_step=step)
             start_time = end_time
       except tf.errors.OutOfRangeError:
-        print("Done training after reading all data")
         print("Exporting trained model to {}".format(FLAGS.model_path))
         model_exporter = exporter.Exporter(saver)
         model_exporter.init(
@@ -375,7 +376,6 @@ def main():
 
     elif mode == "export":
       print("Start to export model directly")
-
       # Load the checkpoint files
       if latest_checkpoint:
         print("Load the checkpoint from {}".format(latest_checkpoint))

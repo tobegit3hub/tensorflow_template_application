@@ -12,8 +12,15 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_float('learning_rate', 0.01, 'Initial learning rate.')
-flags.DEFINE_integer('epoch_number', None, 'Number of epochs to run trainer.')
+flags.DEFINE_string("train_tfrecords_path", "data/cancer_train.csv.tfrecords",
+                    "Path of train TFRecords files")
+flags.DEFINE_string("validate_tfrecords_path",
+                    "data/cancer_test.csv.tfrecords",
+                    "Path of validate TFRecords files")
+flags.DEFINE_integer("feature_size", 9, "Number of feature size")
+flags.DEFINE_integer("label_size", 2, "Number of label size")
+flags.DEFINE_float("learning_rate", 0.01, "Initial learning rate")
+flags.DEFINE_integer("epoch_number", None, "Number of epochs to run trainer")
 flags.DEFINE_integer("batch_size", 1024,
                      "indicates batch size in a single gpu, default is 1024")
 flags.DEFINE_integer("validate_batch_size", 1024,
@@ -43,11 +50,11 @@ flags.DEFINE_integer("export_version", 1, "Version number of the model.")
 
 
 def main():
-  # Change these for different models
-  FEATURE_SIZE = 9
-  LABEL_SIZE = 2
-  TRAIN_TFRECORDS_FILE = "data/cancer_train.csv.tfrecords"
-  VALIDATE_TFRECORDS_FILE = "data/cancer_test.csv.tfrecords"
+  # Change these for different task
+  FEATURE_SIZE = FLAGS.feature_size
+  LABEL_SIZE = FLAGS.label_size
+  TRAIN_TFRECORDS_FILE = FLAGS.train_tfrecords_path
+  VALIDATE_TFRECORDS_FILE = FLAGS.validate_tfrecords_path
 
   epoch_number = FLAGS.epoch_number
   thread_number = FLAGS.thread_number
@@ -318,7 +325,6 @@ def main():
             saver.save(sess, checkpoint_file, global_step=step)
             start_time = end_time
       except tf.errors.OutOfRangeError:
-        print("Done training after reading all data")
         print("Exporting trained model to {}".format(FLAGS.model_path))
         model_exporter = exporter.Exporter(saver)
         model_exporter.init(sess.graph.as_graph_def(),
