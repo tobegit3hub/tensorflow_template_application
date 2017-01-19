@@ -33,6 +33,7 @@ flags.DEFINE_string("checkpoint_path", "./checkpoint/",
 flags.DEFINE_string("output_path", "./tensorboard/",
                     "The path of tensorboard event files")
 flags.DEFINE_string("model", "dnn", "Support dnn, lr, wide_and_deep")
+flags.DEFINE_string("model_network", "128 32 8", "The neural network of model")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
 flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization")
 flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
@@ -113,31 +114,28 @@ def main():
 
   # Define the model
   input_units = FEATURE_SIZE
-  hidden1_units = 128
-  hidden2_units = 32
-  hidden3_units = 8
   output_units = LABEL_SIZE
+  model_network_hidden_units = [int(i) for i in FLAGS.model_network.split()]
 
   def full_connect(inputs, weights_shape, biases_shape, is_train=True):
-    with tf.device("/cpu:0"):
-      weights = tf.get_variable("weights",
-                                weights_shape,
-                                initializer=tf.random_normal_initializer())
-      biases = tf.get_variable("biases",
-                               biases_shape,
-                               initializer=tf.random_normal_initializer())
-      layer = tf.matmul(inputs, weights) + biases
+    weights = tf.get_variable("weights",
+                              weights_shape,
+                              initializer=tf.random_normal_initializer())
+    biases = tf.get_variable("biases",
+                             biases_shape,
+                             initializer=tf.random_normal_initializer())
+    layer = tf.matmul(inputs, weights) + biases
 
-      if FLAGS.enable_bn and is_train:
-        mean, var = tf.nn.moments(layer, axes=[0])
-        scale = tf.get_variable("scale",
-                                biases_shape,
-                                initializer=tf.random_normal_initializer())
-        shift = tf.get_variable("shift",
-                                biases_shape,
-                                initializer=tf.random_normal_initializer())
-        layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
-                                          FLAGS.bn_epsilon)
+    if FLAGS.enable_bn and is_train:
+      mean, var = tf.nn.moments(layer, axes=[0])
+      scale = tf.get_variable("scale",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      shift = tf.get_variable("shift",
+                              biases_shape,
+                              initializer=tf.random_normal_initializer())
+      layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
+                                        FLAGS.bn_epsilon)
     return layer
 
   def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
@@ -145,14 +143,18 @@ def main():
     layer = tf.nn.relu(layer)
     return layer
 
-  def dnn_inference(inputs, is_train=True):
-    with tf.variable_scope("layer1"):
+  def customized_inference(inputs, is_train=True):
+    hidden1_units = 128
+    hidden2_units = 32
+    hidden3_units = 8
+
+    with tf.variable_scope("input"):
       layer = full_connect_relu(inputs, [input_units, hidden1_units],
                                 [hidden1_units], is_train)
-    with tf.variable_scope("layer2"):
+    with tf.variable_scope("layer0"):
       layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
                                 [hidden2_units], is_train)
-    with tf.variable_scope("layer3"):
+    with tf.variable_scope("layer1"):
       layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
                                 [hidden3_units], is_train)
 
@@ -164,8 +166,27 @@ def main():
                            [output_units], is_train)
     return layer
 
+  def dnn_inference(inputs, is_train=True):
+    with tf.variable_scope("input"):
+      layer = full_connect_relu(inputs,
+                                [input_units, model_network_hidden_units[0]],
+                                [model_network_hidden_units[0]], is_train)
+
+    for i in range(len(model_network_hidden_units) - 1):
+      with tf.variable_scope("layer{}".format(i)):
+        layer = full_connect_relu(
+            layer,
+            [model_network_hidden_units[i], model_network_hidden_units[i + 1]],
+            [model_network_hidden_units[i + 1]], is_train)
+
+    with tf.variable_scope("output"):
+      layer = full_connect(layer,
+                           [model_network_hidden_units[-1], output_units],
+                           [output_units], is_train)
+    return layer
+
   def lr_inference(inputs, is_train=True):
-    with tf.variable_scope("logistic_regression"):
+    with tf.variable_scope("lr"):
       layer = full_connect(inputs, [input_units, output_units], [output_units])
     return layer
 
@@ -174,12 +195,14 @@ def main():
 
   def inference(inputs, is_train=True):
     print("Use the model: {}".format(FLAGS.model))
-    if FLAGS.model == "lr":
-      return lr_inference(inputs, is_train)
-    elif FLAGS.model == "dnn":
+    if FLAGS.model == "dnn":
       return dnn_inference(inputs, is_train)
+    elif FLAGS.model == "lr":
+      return lr_inference(inputs, is_train)
     elif FLAGS.model == "wide_and_deep":
       return wide_and_deep_inference(inputs, is_train)
+    elif FLAGS.model == "customized":
+      return customized_inference(inputs, is_train)
     else:
       print("Unknown model, exit now")
       exit(1)
