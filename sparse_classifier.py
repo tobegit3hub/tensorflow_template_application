@@ -12,55 +12,52 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string("train_tfrecords_path", "data/a8a_train.libsvm.tfrecords",
-                    "Path of train TFRecords files")
-flags.DEFINE_string("validate_tfrecords_path",
+flags.DEFINE_string("train_tfrecords_file", "data/a8a_train.libsvm.tfrecords",
+                    "The glob pattern of train TFRecords files")
+flags.DEFINE_string("validate_tfrecords_file",
                     "data/a8a_test.libsvm.tfrecords",
-                    "Path of validate TFRecords files")
+                    "The glob pattern of validate TFRecords files")
 flags.DEFINE_integer("feature_size", 124, "Number of feature size")
 flags.DEFINE_integer("label_size", 2, "Number of label size")
-flags.DEFINE_float("learning_rate", 0.01, "Initial learning rate.")
-flags.DEFINE_integer("epoch_number", None, "Number of epochs to run trainer.")
-flags.DEFINE_integer("batch_size", 1024,
-                     "indicates batch size in a single gpu, default is 1024")
-flags.DEFINE_integer("validate_batch_size", 1024,
-                     "indicates batch size in a single gpu, default is 1024")
-flags.DEFINE_integer("thread_number", 1, "Number of thread to read data")
+flags.DEFINE_float("learning_rate", 0.01, "The learning rate")
+flags.DEFINE_integer("epoch_number", 10, "Number of epochs to train")
+flags.DEFINE_integer("batch_size", 1024, "The batch size of training")
+flags.DEFINE_integer("validate_batch_size", 1024, "The batch size of validation")
+flags.DEFINE_integer("batch_thread_number", 1, "Number of threads to read data")
 flags.DEFINE_integer("min_after_dequeue", 100,
-                     "indicates min_after_dequeue of shuffle queue")
-flags.DEFINE_string("checkpoint_path", "./sparse_checkpoint/",
-                    "indicates the checkpoint dirctory")
+                     "The minimal number after dequeue")
+flags.DEFINE_string("checkpoint_path", "./sparse_checkpoint/", "The path of checkpoint")
 flags.DEFINE_string("output_path", "./sparse_tensorboard/",
-                    "indicates training output")
-flags.DEFINE_string("model", "dnn",
-                    "Model to train, option model: dnn, lr, wide_and_deep")
+                    "The path of tensorboard event files")
+flags.DEFINE_string("model", "dnn", "Support dnn, lr, wide_and_deep")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
 flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization.")
 flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
 flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
 flags.DEFINE_boolean("enable_lr_decay", False, "Enable learning rate decay")
 flags.DEFINE_float("lr_decay_rate", 0.96, "Learning rate decay rate")
-flags.DEFINE_string("optimizer", "adagrad", "optimizer to train")
+flags.DEFINE_string("optimizer", "adagrad", "The optimizer to train")
 flags.DEFINE_integer("steps_to_validate", 10,
-                     "Steps to validate and print loss")
-flags.DEFINE_string("mode", "train", "Option mode: train, export, inference")
-flags.DEFINE_string("model_path", "./sparse_model/", "indicates training output")
-flags.DEFINE_integer("export_version", 1, "Version number of the model")
+                     "Steps to validate and print state")
+flags.DEFINE_string("mode", "train", "Support train, export, inference")
+flags.DEFINE_string("model_path", "./sparse_model/", "The path of the model")
+flags.DEFINE_integer("model_version", 1, "The version of the model")
 
 
 def main():
-  # Change these for different models
   FEATURE_SIZE = FLAGS.feature_size
   LABEL_SIZE = FLAGS.label_size
-  TRAIN_TFRECORDS_FILE = FLAGS.train_tfrecords_path
-  VALIDATE_TFRECORDS_FILE = FLAGS.validate_tfrecords_path
+  TRAIN_TFRECORDS_FILE = FLAGS.train_tfrecords_file
+  VALIDATE_TFRECORDS_FILE = FLAGS.validate_tfrecords_file
   learning_rate = FLAGS.learning_rate
-  epoch_number = FLAGS.epoch_number
-  thread_number = FLAGS.thread_number
+  EPOCH_NUMBER = FLAGS.epoch_number
+  if EPOCH_NUMBER <= 0:
+    EPOCH_NUMBER = None
+  BATCH_THREAD_NUMBER = FLAGS.batch_thread_number
   batch_size = FLAGS.batch_size
   validate_batch_size = FLAGS.validate_batch_size
   min_after_dequeue = FLAGS.min_after_dequeue
-  capacity = thread_number * batch_size + min_after_dequeue
+  capacity = BATCH_THREAD_NUMBER * batch_size + min_after_dequeue
   mode = FLAGS.mode
   checkpoint_path = FLAGS.checkpoint_path
   if not os.path.exists(checkpoint_path):
@@ -77,12 +74,12 @@ def main():
   # Read TFRecords files for training
   filename_queue = tf.train.string_input_producer(
       tf.train.match_filenames_once(TRAIN_TFRECORDS_FILE),
-      num_epochs=epoch_number)
+      num_epochs=EPOCH_NUMBER)
   serialized_example = read_and_decode(filename_queue)
   batch_serialized_example = tf.train.shuffle_batch(
       [serialized_example],
       batch_size=batch_size,
-      num_threads=thread_number,
+      num_threads=BATCH_THREAD_NUMBER,
       capacity=capacity,
       min_after_dequeue=min_after_dequeue)
   features = tf.parse_example(batch_serialized_example,
@@ -99,12 +96,12 @@ def main():
   # Read TFRecords file for validation
   validate_filename_queue = tf.train.string_input_producer(
       tf.train.match_filenames_once(VALIDATE_TFRECORDS_FILE),
-      num_epochs=epoch_number)
+      num_epochs=EPOCH_NUMBER)
   validate_serialized_example = read_and_decode(validate_filename_queue)
   validate_batch_serialized_example = tf.train.shuffle_batch(
       [validate_serialized_example],
       batch_size=validate_batch_size,
-      num_threads=thread_number,
+      num_threads=BATCH_THREAD_NUMBER,
       capacity=capacity,
       min_after_dequeue=min_after_dequeue)
   validate_features = tf.parse_example(
@@ -367,7 +364,7 @@ def main():
                      "prediction": inference_op})
             })
         model_exporter.export(FLAGS.model_path,
-                              tf.constant(FLAGS.export_version), sess)
+                              tf.constant(FLAGS.model_version), sess)
       finally:
         coord.request_stop()
 
@@ -401,7 +398,7 @@ def main():
                    "prediction": inference_op})
           })
       model_exporter.export(FLAGS.model_path,
-                            tf.constant(FLAGS.export_version), sess)
+                            tf.constant(FLAGS.model_version), sess)
 
     elif mode == "inference":
       print("Start to run inference")
