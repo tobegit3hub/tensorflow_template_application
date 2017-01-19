@@ -1,83 +1,125 @@
 ## Introduction
 
-It's the general project to walk through the proceses of using [TensorFlow](https://github.com/tensorflow/tensorflow).
+It is the generic golden program for deep learning with [TensorFlow](https://github.com/tensorflow/tensorflow).
 
-Most data is stored in CSV files and you can learn to convert them to **TFRecords**. This implements the **neural network** model which can extend to more complicated ones. It stores **checkpoints** for fault tolerance and **inference**. You can learn to use **TensorBoard** as well and the example data could be found in [cancer-deep-learning-model](https://github.com/mark-watson/cancer-deep-learning-model).
+Following are the supported features.
+
+- [x] Data Format
+  - [x] [CSV](./data/)
+  - [x] [LIBSVM](./data/)
+  - [x] [TFRecords](./data/)
+- [x] Predict Server
+  - [x] [TensorFlow serving](./cpp_predict_server/)
+  - [x] [Python gRPC server](./python_predict_server/)
+  - [x] [Python HTTP server](./http_service/)
+- [ ] Predict Client
+  - [x] [Python gPRC client](./python_predict_client/)
+  - [x] [Java gPRC client](./java_predict_client/)
+  - [x] [Scala gPRC client](./java_predict_client/)
+  - [ ] Spark client
+  - [ ] C++ client
+  - [ ] Golang client
+- [x] Use Cases
+  - [x] Train model
+  - [x] Export model
+  - [x] Validate auc
+  - [x] Inference online
+- [x] Network Model
+  - [x] LR
+  - [x] DNN
+  - [x] Wide and deep
+  - [x] Customized
+- [x] Others
+  - [x] Checkpoint
+  - [x] TensorBoard
+  - [x] Exporter
+  - [x] Dropout
+  - [x] Optimizers
+  - [x] Learning rate decay
+  - [x] Batch normalization
 
 ## Usage
 
-### dense data 
+### Generate TFRecords
 
-The [data](./data/) format should be CSV and you can convert to TFRecords.
-
-```
-3,7,7,4,4,9,4,8,1,1
-1,1,1,1,2,1,2,1,1,0
-4,1,1,3,2,1,3,1,1,0
-7,8,7,2,4,8,3,8,2,1
-9,5,8,1,2,3,2,1,5,1
-```
+If your data is in CSV format, generate TFRecords like this.
 
 ```
-cd ./data/
-python convert_cancer_to_tfrecords.py
+cd ./data/cancer/
+
+./generate_csv_tfrecords.py
 ```
 
-### sparse data 
-
-The [data](./data/) format should be LIBSVM and you can convert to TFRecords.
+If your data is in LIBSVM format, generate TFRecords like this.
 
 ```
-0 1:1 6:1 14:1 20:1 37:1 40:1 51:1 61:1 70:1 72:1 74:1 76:1 80:1 83:1
-0 1:1 6:1 17:1 22:1 36:1 42:1 49:1 62:1 67:1 72:1 74:1 76:1 78:1
-1 4:1 6:1 14:1 23:1 39:1 40:1 52:1 61:1 67:1 72:1 74:1 77:1 82:1 97:1
-1 5:1 9:1 17:1 19:1 39:1 41:1 51:1 64:1 67:1 73:1 74:1 76:1 82:1 83:1
-0 4:1 6:1 15:1 22:1 36:1 40:1 55:1 63:1 67:1 73:1 74:1 76:1 82:1 83:1
-0 3:1 6:1 15:1 22:1 36:1 40:1 48:1 63:1 67:1 73:1 74:1 76:1 80:1 83:1
+cd ./data/a8a/
+
+./generate_libsvm_tfrecord.py
 ```
 
-```
-cd ./data/
-python convert_a8a_to_tfrecords.py
-```
+For large dataset, you can use Spark to do that. Please refer to [data](./data/).
 
-### Develop application
+### Run Training
 
-On dense data, we can use the `cancer_classifier.py` to train or implement your model. Refer to [distributed](./distributed/) for distributed implementation.
+You can train with the default configuration.
 
 ```
-python cancer_classifier.py
+./dense_classifier.py
+
+./sparse_classifier.py
 ```
 
-You can also train the model from scrath and this takes time for better auc.
+Using different models or hyperparameters is easy with TensorFlow flags.
 
 ```
-python cancer_classifier.py --mode=train_from_scratch
+./dense_classifier.py --batch_size 1024 --epoch_number 1000 --step_to_validate 10 --optmizier adagrad --model dnn --model_network "128 32 8"
 ```
 
-If we want to run inference or prediction, just run with parameters.
+### Export The Model
+
+After training, it will export the model automatically. Or you can export manually.
 
 ```
-python cancer_classifier.py --mode=inference
+./dense_classifier.py --mode export
 ```
 
-You can specify the GPU to train.
+### Validate The Model
+
+If we want to run inference to validate the model, you can run like this.
 
 ```
-CUDA_VISIBLE_DEVICES='0'
-```
-
-All above is the same for sparse data.
-```
-python a8a_classifier.py [parameters]
+./dense_classifier.py --mode inference
 ```
 
 ### Use TensorBoard
 
-The summary data is stored in [tensorboard](./tensorboard/) and we use TenorBoard for visualization.
+The program will generate TensorFlow event files automatically.
 
 ```
 tensorboard --logdir ./tensorboard/
 ```
 
 Then go to `http://127.0.0.1:6006` in the browser.
+
+### Serving And Predicting
+
+The exported model is compatiable with [TensorFlow Serving](https://github.com/tensorflow/serving). You can follow the document and run the `tensorflow_model_server`.
+
+```
+./tensorflow_model_server --port=9000 --model_name=dense --model_base_path=./model/
+```
+
+We have provided some gRPC clients for dense and sparse models, such as [Python predict client](./python_predict_client/) and [Java predict client](./java_predict_client/).
+
+```
+./predict_client.py --host 127.0.0.1 --port 9000 --model_name dense --model_version 1
+
+mvn compile exec:java -Dexec.mainClass="com.tobe.DensePredictClient" -Dexec.args="127.0.0.1 9000 dense 1"
+```
+
+## Contribution
+
+This project is widely used for different tasks with dense or sparse data.
+
+If you want to make contirbutions, feel free to open an [issue](https://github.com/tobegit3hub/deep_recommend_system/issues) or [pull-request](https://github.com/tobegit3hub/deep_recommend_system/pulls).

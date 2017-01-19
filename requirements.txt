@@ -1,3 +1,3 @@
-tensorflow
-django
+tensorflow>=0.10.0
+scikit-learn>=0.17.1
 sklearn

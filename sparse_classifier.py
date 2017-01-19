@@ -12,10 +12,10 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string("train_tfrecords_file", "data/a8a_train.libsvm.tfrecords",
+flags.DEFINE_string("train_tfrecords_file", "./data/a8a/a8a_train.libsvm.tfrecords",
                     "The glob pattern of train TFRecords files")
 flags.DEFINE_string("validate_tfrecords_file",
-                    "data/a8a_test.libsvm.tfrecords",
+                    "./data/a8a/a8a_test.libsvm.tfrecords",
                     "The glob pattern of validate TFRecords files")
 flags.DEFINE_integer("feature_size", 124, "Number of feature size")
 flags.DEFINE_integer("label_size", 2, "Number of label size")
@@ -239,7 +239,7 @@ def main():
       print("Unknown model, exit now")
       exit(1)
 
-  print("Use the model: {}".format(MODEL))
+  print("Use the model: {}, model network: {}".format(MODEL, FLAGS.model_network))
   logits = inference(batch_ids, batch_values, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
