@@ -22,16 +22,20 @@ flags.DEFINE_integer("label_size", 2, "Number of label size")
 flags.DEFINE_float("learning_rate", 0.01, "The learning rate")
 flags.DEFINE_integer("epoch_number", 10, "Number of epochs to train")
 flags.DEFINE_integer("batch_size", 1024, "The batch size of training")
-flags.DEFINE_integer("validate_batch_size", 1024, "The batch size of validation")
-flags.DEFINE_integer("batch_thread_number", 1, "Number of threads to read data")
+flags.DEFINE_integer("validate_batch_size", 1024,
+                     "The batch size of validation")
+flags.DEFINE_integer("batch_thread_number", 1,
+                     "Number of threads to read data")
 flags.DEFINE_integer("min_after_dequeue", 100,
                      "The minimal number after dequeue")
-flags.DEFINE_string("checkpoint_path", "./sparse_checkpoint/", "The path of checkpoint")
+flags.DEFINE_string("checkpoint_path", "./sparse_checkpoint/",
+                    "The path of checkpoint")
 flags.DEFINE_string("output_path", "./sparse_tensorboard/",
                     "The path of tensorboard event files")
 flags.DEFINE_string("model", "dnn", "Support dnn, lr, wide_and_deep")
+flags.DEFINE_string("model_network", "128 32 8", "The neural network of model")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
-flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization.")
+flags.DEFINE_float("bn_epsilon", 0.001, "The epsilon of batch normalization")
 flags.DEFINE_boolean("enable_dropout", False, "Enable dropout or not")
 flags.DEFINE_float("dropout_keep_prob", 0.5, "The dropout keep prob")
 flags.DEFINE_boolean("enable_lr_decay", False, "Enable learning rate decay")
@@ -42,30 +46,36 @@ flags.DEFINE_integer("steps_to_validate", 10,
 flags.DEFINE_string("mode", "train", "Support train, export, inference")
 flags.DEFINE_string("model_path", "./sparse_model/", "The path of the model")
 flags.DEFINE_integer("model_version", 1, "The version of the model")
+flags.DEFINE_string("inference_test_file", "./data/a8a_test.libsvm",
+                    "The test file for inference")
+flags.DEFINE_string("inference_result_file", "./inference_result.txt",
+                    "The result file from inference")
 
 
 def main():
+  # Pre-process hyperparameters
   FEATURE_SIZE = FLAGS.feature_size
   LABEL_SIZE = FLAGS.label_size
-  TRAIN_TFRECORDS_FILE = FLAGS.train_tfrecords_file
-  VALIDATE_TFRECORDS_FILE = FLAGS.validate_tfrecords_file
-  learning_rate = FLAGS.learning_rate
   EPOCH_NUMBER = FLAGS.epoch_number
   if EPOCH_NUMBER <= 0:
     EPOCH_NUMBER = None
   BATCH_THREAD_NUMBER = FLAGS.batch_thread_number
-  batch_size = FLAGS.batch_size
-  validate_batch_size = FLAGS.validate_batch_size
-  min_after_dequeue = FLAGS.min_after_dequeue
-  capacity = BATCH_THREAD_NUMBER * batch_size + min_after_dequeue
-  mode = FLAGS.mode
-  checkpoint_path = FLAGS.checkpoint_path
-  if not os.path.exists(checkpoint_path):
-    os.makedirs(checkpoint_path)
-  output_path = FLAGS.output_path
-  if not os.path.exists(output_path):
-    os.makedirs(output_path)
+  MIN_AFTER_DEQUEUE = FLAGS.min_after_dequeue
+  BATCH_CAPACITY = BATCH_THREAD_NUMBER * FLAGS.batch_size + MIN_AFTER_DEQUEUE
+  MODE = FLAGS.mode
+  MODEL = FLAGS.model
+  OPTIMIZER = FLAGS.optimizer
+  CHECKPOINT_PATH = FLAGS.checkpoint_path
+  if not CHECKPOINT_PATH.startswith("fds://") and not os.path.exists(
+      CHECKPOINT_PATH):
+    os.makedirs(CHECKPOINT_PATH)
+  CHECKPOINT_FILE = CHECKPOINT_PATH + "/checkpoint.ckpt"
+  LATEST_CHECKPOINT = tf.train.latest_checkpoint(CHECKPOINT_PATH)
+  OUTPUT_PATH = FLAGS.output_path
+  if not OUTPUT_PATH.startswith("fds://") and not os.path.exists(OUTPUT_PATH):
+    os.makedirs(OUTPUT_PATH)
 
+  # Read TFRecords files for training
   def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
@@ -73,15 +83,15 @@ def main():
 
   # Read TFRecords files for training
   filename_queue = tf.train.string_input_producer(
-      tf.train.match_filenames_once(TRAIN_TFRECORDS_FILE),
+      tf.train.match_filenames_once(FLAGS.train_tfrecords_file),
       num_epochs=EPOCH_NUMBER)
   serialized_example = read_and_decode(filename_queue)
   batch_serialized_example = tf.train.shuffle_batch(
       [serialized_example],
-      batch_size=batch_size,
+      batch_size=FLAGS.batch_size,
       num_threads=BATCH_THREAD_NUMBER,
-      capacity=capacity,
-      min_after_dequeue=min_after_dequeue)
+      capacity=BATCH_CAPACITY,
+      min_after_dequeue=MIN_AFTER_DEQUEUE)
   features = tf.parse_example(batch_serialized_example,
                               features={
                                   "label": tf.FixedLenFeature(
@@ -95,15 +105,15 @@ def main():
 
   # Read TFRecords file for validation
   validate_filename_queue = tf.train.string_input_producer(
-      tf.train.match_filenames_once(VALIDATE_TFRECORDS_FILE),
+      tf.train.match_filenames_once(FLAGS.validate_tfrecords_file),
       num_epochs=EPOCH_NUMBER)
   validate_serialized_example = read_and_decode(validate_filename_queue)
   validate_batch_serialized_example = tf.train.shuffle_batch(
       [validate_serialized_example],
-      batch_size=validate_batch_size,
+      batch_size=FLAGS.validate_batch_size,
       num_threads=BATCH_THREAD_NUMBER,
-      capacity=capacity,
-      min_after_dequeue=min_after_dequeue)
+      capacity=BATCH_CAPACITY,
+      min_after_dequeue=MIN_AFTER_DEQUEUE)
   validate_features = tf.parse_example(
       validate_batch_serialized_example,
       features={
@@ -118,10 +128,8 @@ def main():
 
   # Define the model
   input_units = FEATURE_SIZE
-  hidden1_units = 128
-  hidden2_units = 32
-  hidden3_units = 8
   output_units = LABEL_SIZE
+  model_network_hidden_units = [int(i) for i in FLAGS.model_network.split()]
 
   def full_connect(inputs, weights_shape, biases_shape, is_train=True):
     with tf.device("/cpu:0"):
@@ -150,13 +158,12 @@ def main():
                           weights_shape,
                           biases_shape,
                           is_train=True):
-    with tf.device("/cpu:0"):
-      weights = tf.get_variable("weights",
-                                weights_shape,
-                                initializer=tf.random_normal_initializer())
-      biases = tf.get_variable("biases",
-                               biases_shape,
-                               initializer=tf.random_normal_initializer())
+    weights = tf.get_variable("weights",
+                              weights_shape,
+                              initializer=tf.random_normal_initializer())
+    biases = tf.get_variable("biases",
+                             biases_shape,
+                             initializer=tf.random_normal_initializer())
     return tf.nn.embedding_lookup_sparse(weights,
                                          sparse_ids,
                                          sparse_values,
@@ -166,22 +173,46 @@ def main():
     return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape,
                                    is_train))
 
-  def dnn_inference(sparse_ids, sparse_values, is_train=True):
-    with tf.variable_scope("layer1"):
+  def customized_inference(sparse_ids, sparse_values, is_train=True):
+    hidden1_units = 128
+    hidden2_units = 32
+    hidden3_units = 8
+
+    with tf.variable_scope("input"):
       sparse_layer = sparse_full_connect(sparse_ids, sparse_values,
                                          [input_units, hidden1_units],
                                          [hidden1_units], is_train)
       layer = tf.nn.relu(sparse_layer)
-    with tf.variable_scope("layer2"):
+    with tf.variable_scope("layer0"):
       layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
                                 [hidden2_units], is_train)
-    with tf.variable_scope("layer3"):
+    with tf.variable_scope("layer1"):
       layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
                                 [hidden3_units], is_train)
     if FLAGS.enable_dropout and is_train:
       layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
     with tf.variable_scope("output"):
       layer = full_connect(layer, [hidden3_units, output_units],
+                           [output_units], is_train)
+    return layer
+
+  def dnn_inference(sparse_ids, sparse_values, is_train=True):
+    with tf.variable_scope("input"):
+      sparse_layer = sparse_full_connect(
+          sparse_ids, sparse_values,
+          [input_units, model_network_hidden_units[0]],
+          [model_network_hidden_units[0]], is_train)
+      layer = tf.nn.relu(sparse_layer)
+
+    for i in range(len(model_network_hidden_units) - 1):
+      with tf.variable_scope("layer{}".format(i)):
+        layer = full_connect_relu(layer, [
+            model_network_hidden_units[i], model_network_hidden_units[i + 1]
+        ], [model_network_hidden_units[i + 1]], is_train)
+
+    with tf.variable_scope("output"):
+      layer = full_connect(layer,
+                           [model_network_hidden_units[-1], output_units],
                            [output_units], is_train)
     return layer
 
@@ -196,26 +227,25 @@ def main():
         sparse_ids, sparse_values, is_train)
 
   def inference(sparse_ids, sparse_values, is_train=True):
-    print("Use the model: {}".format(FLAGS.model))
-    if FLAGS.model == "lr":
-      return lr_inference(sparse_ids, sparse_values, is_train)
-    elif FLAGS.model == "dnn":
+    if MODEL == "dnn":
       return dnn_inference(sparse_ids, sparse_values, is_train)
-    elif FLAGS.model == "wide_and_deep":
+    elif MODEL == "lr":
+      return lr_inference(sparse_ids, sparse_values, is_train)
+    elif MODEL == "wide_and_deep":
       return wide_and_deep_inference(sparse_ids, sparse_values, is_train)
+    elif MODEL == "customized":
+      return customized_inference(sparse_ids, sparse_values, is_train)
     else:
       print("Unknown model, exit now")
       exit(1)
 
+  print("Use the model: {}".format(MODEL))
   logits = inference(batch_ids, batch_values, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
                                                                  batch_labels)
   loss = tf.reduce_mean(cross_entropy, name="loss")
-
-  with tf.device("/cpu:0"):
-    global_step = tf.Variable(0, name="global_step", trainable=False)
-
+  global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
     print("Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
     starter_learning_rate = FLAGS.learning_rate
@@ -226,26 +256,8 @@ def main():
                                                staircase=True)
   else:
     learning_rate = FLAGS.learning_rate
-
-  print("Use the optimizer: {}".format(FLAGS.optimizer))
-  if FLAGS.optimizer == "sgd":
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-  elif FLAGS.optimizer == "adadelta":
-    optimizer = tf.train.AdadeltaOptimizer(learning_rate)
-  elif FLAGS.optimizer == "adagrad":
-    optimizer = tf.train.AdagradOptimizer(learning_rate)
-  elif FLAGS.optimizer == "adam":
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-  elif FLAGS.optimizer == "ftrl":
-    optimizer = tf.train.FtrlOptimizer(learning_rate)
-  elif FLAGS.optimizer == "rmsprop":
-    optimizer = tf.train.RMSPropOptimizer(learning_rate)
-  else:
-    print("Unknow optimizer: {}, exit now".format(FLAGS.optimizer))
-    exit(1)
-
+  optimizer = get_optimizer(FLAGS.optimizer, learning_rate)
   train_op = optimizer.minimize(loss, global_step=global_step)
-
   tf.get_variable_scope().reuse_variables()
 
   # Define accuracy op for train data
@@ -298,42 +310,48 @@ def main():
   inference_logits = inference(inference_ids, inference_values, False)
   inference_softmax = tf.nn.softmax(inference_logits)
   inference_op = tf.argmax(inference_softmax, 1)
+  keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
+  keys = tf.identity(keys_placeholder)
+  model_signature = {
+      "inputs": exporter.generic_signature({"keys": keys_placeholder,
+                                            "indexs": sparse_index,
+                                            "ids": sparse_ids,
+                                            "values": sparse_values,
+                                            "shape": sparse_shape}),
+      "outputs": exporter.generic_signature({"keys": keys,
+                                             "softmax": inference_softmax,
+                                             "prediction": inference_op})
+  }
 
   # Initialize saver and summary
-  checkpoint_file = checkpoint_path + "/checkpoint.ckpt"
-  latest_checkpoint = tf.train.latest_checkpoint(checkpoint_path)
-  steps_to_validate = FLAGS.steps_to_validate
+  saver = tf.train.Saver()
   tf.scalar_summary("loss", loss)
   tf.scalar_summary("train_accuracy", train_accuracy)
   tf.scalar_summary("train_auc", train_auc)
   tf.scalar_summary("validate_accuracy", validate_accuracy)
   tf.scalar_summary("validate_auc", validate_auc)
-  saver = tf.train.Saver()
-  keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
-  keys = tf.identity(keys_placeholder)
+  summary_op = tf.merge_all_summaries()
 
   # Create session to run
   with tf.Session() as sess:
-    summary_op = tf.merge_all_summaries()
-    writer = tf.train.SummaryWriter(output_path, sess.graph)
+    print("Start to run with mode: {}".format(MODE))
+    writer = tf.train.SummaryWriter(OUTPUT_PATH, sess.graph)
     sess.run(tf.initialize_all_variables())
     sess.run(tf.initialize_local_variables())
 
-    if mode == "train":
-      if latest_checkpoint:
-        print("Load the checkpoint from {}".format(latest_checkpoint))
-        saver.restore(sess, latest_checkpoint)
-
-      # Get coordinator and run queues to read data
+    if MODE == "train":
+      # Restore session and start queue runner
+      restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT)
       coord = tf.train.Coordinator()
       threads = tf.train.start_queue_runners(coord=coord, sess=sess)
-
       start_time = datetime.datetime.now()
+
       try:
         while not coord.should_stop():
           _, loss_value, step = sess.run([train_op, loss, global_step])
 
-          if step % steps_to_validate == 0:
+          # Print state while training
+          if step % FLAGS.steps_to_validate == 0:
             train_accuracy_value, train_auc_value, validate_accuracy_value, auc_value, summary_value = sess.run(
                 [train_accuracy, train_auc, validate_accuracy, validate_auc,
                  summary_op])
@@ -343,67 +361,32 @@ def main():
                     end_time - start_time, step, loss_value,
                     train_accuracy_value, train_auc_value,
                     validate_accuracy_value, auc_value))
-
             writer.add_summary(summary_value, step)
-            saver.save(sess, checkpoint_file, global_step=step)
+            saver.save(sess, CHECKPOINT_FILE, global_step=step)
             start_time = end_time
       except tf.errors.OutOfRangeError:
-        print("Exporting trained model to {}".format(FLAGS.model_path))
-        model_exporter = exporter.Exporter(saver)
-        model_exporter.init(
-            sess.graph.as_graph_def(),
-            named_graph_signatures={
-                "inputs": exporter.generic_signature({"keys": keys_placeholder,
-                                                      "indexs": sparse_index,
-                                                      "ids": sparse_ids,
-                                                      "values": sparse_values,
-                                                      "shape": sparse_shape}),
-                "outputs": exporter.generic_signature(
-                    {"keys": keys,
-                     "softmax": inference_softmax,
-                     "prediction": inference_op})
-            })
-        model_exporter.export(FLAGS.model_path,
-                              tf.constant(FLAGS.model_version), sess)
+        # Export the model after training
+        export_model(sess, saver, model_signature, FLAGS.model_path,
+                     FLAGS.model_version)
       finally:
         coord.request_stop()
-
-      # Wait for threads to exit
       coord.join(threads)
 
-    elif mode == "export":
-      print("Start to export model directly")
-      # Load the checkpoint files
-      if latest_checkpoint:
-        print("Load the checkpoint from {}".format(latest_checkpoint))
-        saver.restore(sess, latest_checkpoint)
-      else:
+    elif MODE == "export":
+      if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
         print("No checkpoint found, exit now")
         exit(1)
 
-      # Export the model files
-      print("Exporting trained model to {}".format(FLAGS.model_path))
-      model_exporter = exporter.Exporter(saver)
-      model_exporter.init(
-          sess.graph.as_graph_def(),
-          named_graph_signatures={
-              "inputs": exporter.generic_signature({"keys": keys_placeholder,
-                                                    "indexs": sparse_index,
-                                                    "ids": sparse_ids,
-                                                    "values": sparse_values,
-                                                    "shape": sparse_shape}),
-              "outputs": exporter.generic_signature(
-                  {"keys": keys,
-                   "softmax": inference_softmax,
-                   "prediction": inference_op})
-          })
-      model_exporter.export(FLAGS.model_path,
-                            tf.constant(FLAGS.model_version), sess)
+      # Export the model
+      export_model(sess, saver, model_signature, FLAGS.model_path,
+                   FLAGS.model_version)
 
-    elif mode == "inference":
-      print("Start to run inference")
-      start_time = datetime.datetime.now()
+    elif MODE == "inference":
+      if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
+        print("No checkpoint found, exit now")
+        exit(1)
 
+      # Load inference test data
       inference_result_file_name = "./inference_result.txt"
       inference_test_file_name = "./data/a8a_test.libsvm"
       labels = []
@@ -414,7 +397,6 @@ def main():
       for line in open(inference_test_file_name, "r"):
         tokens = line.split(" ")
         labels.append(int(tokens[0]))
-
         feature_num = 0
         for feature in tokens[1:]:
           feature_id, feature_value = feature.split(":")
@@ -424,13 +406,8 @@ def main():
           feature_num += 1
         ins_num += 1
 
-      if latest_checkpoint:
-        print("Load the checkpoint from {}".format(latest_checkpoint))
-        saver.restore(sess, latest_checkpoint)
-      else:
-        print("No model found, exit now")
-        exit(1)
-
+      # Run inference
+      start_time = datetime.datetime.now()
       prediction, prediction_softmax = sess.run(
           [inference_op, inference_softmax],
           feed_dict={sparse_index: feature_index,
@@ -439,8 +416,6 @@ def main():
                      sparse_shape: [ins_num, FEATURE_SIZE]})
 
       end_time = datetime.datetime.now()
-      print("[{}] Inference result: {}".format(end_time - start_time,
-                                               prediction))
 
       # Compute accuracy
       label_number = len(labels)
@@ -457,11 +432,48 @@ def main():
                                                predict_labels,
                                                pos_label=0)
       auc = metrics.auc(fpr, tpr)
-      print("For inference data, accuracy: {}, auc: {}".format(accuracy, auc))
+      print("[{}] Inference accuracy: {}, auc: {}".format(
+          end_time - start_time, accuracy, auc))
 
-      # Save inference result into file
+      # Save result into the file
       np.savetxt(inference_result_file_name, prediction, delimiter=",")
       print("Save result to file: {}".format(inference_result_file_name))
+
+
+def get_optimizer(optimizer, learning_rate):
+  print("Use the optimizer: {}".format(optimizer))
+  if optimizer == "sgd":
+    return tf.train.GradientDescentOptimizer(learning_rate)
+  elif optimizer == "adadelta":
+    return tf.train.AdadeltaOptimizer(learning_rate)
+  elif optimizer == "adagrad":
+    return tf.train.AdagradOptimizer(learning_rate)
+  elif optimizer == "adam":
+    return tf.train.AdamOptimizer(learning_rate)
+  elif optimizer == "ftrl":
+    return tf.train.FtrlOptimizer(learning_rate)
+  elif optimizer == "rmsprop":
+    return tf.train.RMSPropOptimizer(learning_rate)
+  else:
+    print("Unknow optimizer, exit now")
+    exit(1)
+
+
+def restore_session_from_checkpoint(sess, saver, checkpoint):
+  if checkpoint:
+    print("Restore session from checkpoint: {}".format(checkpoint))
+    saver.restore(sess, checkpoint)
+    return True
+  else:
+    return False
+
+
+def export_model(sess, saver, signature, model_path, model_version):
+  print("Export the model to {}".format(model_path))
+  model_exporter = exporter.Exporter(saver)
+  model_exporter.init(sess.graph.as_graph_def(),
+                      named_graph_signatures=signature)
+  model_exporter.export(model_path, tf.constant(model_version), sess)
 
 
 if __name__ == "__main__":

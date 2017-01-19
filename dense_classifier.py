@@ -63,7 +63,7 @@ def main():
   MIN_AFTER_DEQUEUE = FLAGS.min_after_dequeue
   BATCH_CAPACITY = BATCH_THREAD_NUMBER * FLAGS.batch_size + MIN_AFTER_DEQUEUE
   MODE = FLAGS.mode
-  OPTIMIZER = FLAGS.optimizer
+  MODEL = FLAGS.model
   CHECKPOINT_PATH = FLAGS.checkpoint_path
   if not CHECKPOINT_PATH.startswith("fds://") and not os.path.exists(
       CHECKPOINT_PATH):
@@ -78,12 +78,13 @@ def main():
   def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(
-        serialized_example,
-        features={
-            "label": tf.FixedLenFeature([], tf.float32),
-            "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
-        })
+    features = tf.parse_single_example(serialized_example,
+                                       features={
+                                           "label": tf.FixedLenFeature(
+                                               [], tf.float32),
+                                           "features": tf.FixedLenFeature(
+                                               [FEATURE_SIZE], tf.float32),
+                                       })
     label = features["label"]
     features = features["features"]
     return label, features
@@ -157,10 +158,8 @@ def main():
     with tf.variable_scope("layer1"):
       layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
                                 [hidden3_units], is_train)
-
     if FLAGS.enable_dropout and is_train:
       layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
-
     with tf.variable_scope("output"):
       layer = full_connect(layer, [hidden3_units, output_units],
                            [output_units], is_train)
@@ -194,19 +193,19 @@ def main():
     return lr_inference(inputs, is_train) + dnn_inference(inputs, is_train)
 
   def inference(inputs, is_train=True):
-    print("Use the model: {}".format(FLAGS.model))
-    if FLAGS.model == "dnn":
+    if MODEL == "dnn":
       return dnn_inference(inputs, is_train)
-    elif FLAGS.model == "lr":
+    elif MODEL == "lr":
       return lr_inference(inputs, is_train)
-    elif FLAGS.model == "wide_and_deep":
+    elif MODEL == "wide_and_deep":
       return wide_and_deep_inference(inputs, is_train)
-    elif FLAGS.model == "customized":
+    elif MODEL == "customized":
       return customized_inference(inputs, is_train)
     else:
       print("Unknown model, exit now")
       exit(1)
 
+  print("Use the model: {}".format(MODEL))
   logits = inference(batch_features, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
@@ -223,7 +222,7 @@ def main():
                                                staircase=True)
   else:
     learning_rate = FLAGS.learning_rate
-  optimizer = get_optimizer(OPTIMIZER, learning_rate)
+  optimizer = get_optimizer(FLAGS.optimizer, learning_rate)
   train_op = optimizer.minimize(loss, global_step=global_step)
   tf.get_variable_scope().reuse_variables()
 
@@ -292,11 +291,11 @@ def main():
 
   # Create session to run
   with tf.Session() as sess:
+    print("Start to run with mode: {}".format(MODE))
     writer = tf.train.SummaryWriter(OUTPUT_PATH, sess.graph)
     sess.run(tf.initialize_all_variables())
     sess.run(tf.initialize_local_variables())
 
-    print("Start to run with mode: {}".format(MODE))
     if MODE == "train":
       # Restore session and start queue runner
       restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT)
@@ -350,9 +349,9 @@ def main():
       inference_data = np.genfromtxt(inference_test_file_name, delimiter=",")
       inference_data_features = inference_data[:, 0:9]
       inference_data_labels = inference_data[:, 9]
-      start_time = datetime.datetime.now()
 
       # Run inference
+      start_time = datetime.datetime.now()
       prediction, prediction_softmax = sess.run(
           [inference_op, inference_softmax],
           feed_dict={inference_features: inference_data_features})
