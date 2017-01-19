@@ -76,6 +76,12 @@ Using different models or hyperparameters is easy with TensorFlow flags.
 ./dense_classifier.py --batch_size 1024 --epoch_number 1000 --step_to_validate 10 --optmizier adagrad --model dnn --model_network "128 32 8"
 ```
 
+If you use other dataset like [iris](./data/iris/), no need to modify the code. Just run with parameters to specify the TFRecords files.
+
+```
+./dense_classifier.py --train_tfrecords_file ./data/iris/iris_train.csv.tfrecords --validate_tfrecords_file ./data/iris/iris_test.csv.tfrecords --feature_size 4 --label_size 3
+```
+
 ### Export The Model
 
 After training, it will export the model automatically. Or you can export manually.
