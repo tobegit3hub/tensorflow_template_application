@@ -12,7 +12,8 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string("train_tfrecords_file", "./data/cancer/cancer_train.csv.tfrecords",
+flags.DEFINE_string("train_tfrecords_file",
+                    "./data/cancer/cancer_train.csv.tfrecords",
                     "The glob pattern of train TFRecords files")
 flags.DEFINE_string("validate_tfrecords_file",
                     "./data/cancer/cancer_test.csv.tfrecords",
@@ -78,13 +79,12 @@ def main():
   def read_and_decode(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
-    features = tf.parse_single_example(serialized_example,
-                                       features={
-                                           "label": tf.FixedLenFeature(
-                                               [], tf.float32),
-                                           "features": tf.FixedLenFeature(
-                                               [FEATURE_SIZE], tf.float32),
-                                       })
+    features = tf.parse_single_example(
+        serialized_example,
+        features={
+            "label": tf.FixedLenFeature([], tf.float32),
+            "features": tf.FixedLenFeature([FEATURE_SIZE], tf.float32),
+        })
     label = features["label"]
     features = features["features"]
     return label, features
@@ -192,6 +192,78 @@ def main():
   def wide_and_deep_inference(inputs, is_train=True):
     return lr_inference(inputs, is_train) + dnn_inference(inputs, is_train)
 
+  def cnn_inference(inputs, is_train=True):
+    # TODO: Change if validate_batch_size is different
+    # [BATCH_SIZE, 512 * 512 * 1] -> [BATCH_SIZE, 512, 512, 1]
+    inputs = tf.reshape(inputs, [FLAGS.batch_size, 512, 512, 1])
+
+    # [BATCH_SIZE, 512, 512, 1] -> [BATCH_SIZE, 128, 128, 8]
+    with tf.variable_scope("conv0"):
+      weights = tf.get_variable("weights", [3, 3, 1, 8],
+                                initializer=tf.random_normal_initializer())
+      bias = tf.get_variable("bias", [8],
+                             initializer=tf.random_normal_initializer())
+
+      layer = tf.nn.conv2d(inputs,
+                           weights,
+                           strides=[1, 1, 1, 1],
+                           padding="SAME")
+      layer = tf.nn.bias_add(layer, bias)
+      layer = tf.nn.relu(layer)
+      layer = tf.nn.max_pool(layer,
+                             ksize=[1, 4, 4, 1],
+                             strides=[1, 4, 4, 1],
+                             padding="SAME")
+
+    # [BATCH_SIZE, 128, 128, 8] -> [BATCH_SIZE, 32, 32, 8]
+    with tf.variable_scope("conv1"):
+      weights = tf.get_variable("weights", [3, 3, 8, 8],
+                                initializer=tf.random_normal_initializer())
+      bias = tf.get_variable("bias", [8],
+                             initializer=tf.random_normal_initializer())
+
+      layer = tf.nn.conv2d(layer,
+                           weights,
+                           strides=[1, 1, 1, 1],
+                           padding="SAME")
+      layer = tf.nn.bias_add(layer, bias)
+      layer = tf.nn.relu(layer)
+      layer = tf.nn.max_pool(layer,
+                             ksize=[1, 4, 4, 1],
+                             strides=[1, 4, 4, 1],
+                             padding="SAME")
+
+    # [BATCH_SIZE, 32, 32, 8] -> [BATCH_SIZE, 8, 8, 8]
+    with tf.variable_scope("conv2"):
+      weights = tf.get_variable("weights", [3, 3, 8, 8],
+                                initializer=tf.random_normal_initializer())
+      bias = tf.get_variable("bias", [8],
+                             initializer=tf.random_normal_initializer())
+
+      layer = tf.nn.conv2d(layer,
+                           weights,
+                           strides=[1, 1, 1, 1],
+                           padding="SAME")
+      layer = tf.nn.bias_add(layer, bias)
+      layer = tf.nn.relu(layer)
+      layer = tf.nn.max_pool(layer,
+                             ksize=[1, 4, 4, 1],
+                             strides=[1, 4, 4, 1],
+                             padding="SAME")
+
+    # [BATCH_SIZE, 8, 8, 8] -> [BATCH_SIZE, 8 * 8 * 8]
+    layer = tf.reshape(layer, [-1, 8 * 8 * 8])
+
+    # [BATCH_SIZE, 8 * 8 * 8] -> [BATCH_SIZE, LABEL_SIZE]
+    with tf.variable_scope("output"):
+      weights = tf.get_variable("weights", [8 * 8 * 8, LABEL_SIZE],
+                                initializer=tf.random_normal_initializer())
+      bias = tf.get_variable("bias", [LABEL_SIZE],
+                             initializer=tf.random_normal_initializer())
+      layer = tf.add(tf.matmul(layer, weights), bias)
+
+    return layer
+
   def inference(inputs, is_train=True):
     if MODEL == "dnn":
       return dnn_inference(inputs, is_train)
@@ -201,11 +273,14 @@ def main():
       return wide_and_deep_inference(inputs, is_train)
     elif MODEL == "customized":
       return customized_inference(inputs, is_train)
+    elif MODEL == "cnn":
+      return cnn_inference(inputs, is_train)
     else:
       print("Unknown model, exit now")
       exit(1)
 
-  print("Use the model: {}, model network: {}".format(MODEL, FLAGS.model_network))
+  print("Use the model: {}, model network: {}".format(MODEL,
+                                                      FLAGS.model_network))
   logits = inference(batch_features, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,

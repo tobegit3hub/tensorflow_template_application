@@ -12,7 +12,8 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_string("train_tfrecords_file", "./data/a8a/a8a_train.libsvm.tfrecords",
+flags.DEFINE_string("train_tfrecords_file",
+                    "./data/a8a/a8a_train.libsvm.tfrecords",
                     "The glob pattern of train TFRecords files")
 flags.DEFINE_string("validate_tfrecords_file",
                     "./data/a8a/a8a_test.libsvm.tfrecords",
@@ -94,8 +95,7 @@ def main():
       min_after_dequeue=MIN_AFTER_DEQUEUE)
   features = tf.parse_example(batch_serialized_example,
                               features={
-                                  "label": tf.FixedLenFeature(
-                                      [], tf.float32),
+                                  "label": tf.FixedLenFeature([], tf.float32),
                                   "ids": tf.VarLenFeature(tf.int64),
                                   "values": tf.VarLenFeature(tf.float32),
                               })
@@ -117,8 +117,7 @@ def main():
   validate_features = tf.parse_example(
       validate_batch_serialized_example,
       features={
-          "label": tf.FixedLenFeature(
-              [], tf.float32),
+          "label": tf.FixedLenFeature([], tf.float32),
           "ids": tf.VarLenFeature(tf.int64),
           "values": tf.VarLenFeature(tf.float32),
       })
@@ -164,10 +163,9 @@ def main():
     biases = tf.get_variable("biases",
                              biases_shape,
                              initializer=tf.random_normal_initializer())
-    return tf.nn.embedding_lookup_sparse(weights,
-                                         sparse_ids,
-                                         sparse_values,
-                                         combiner="sum") + biases
+    return tf.nn.embedding_lookup_sparse(
+        weights, sparse_ids, sparse_values,
+        combiner="sum") + biases
 
   def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
     return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape,
@@ -239,7 +237,8 @@ def main():
       print("Unknown model, exit now")
       exit(1)
 
-  print("Use the model: {}, model network: {}".format(MODEL, FLAGS.model_network))
+  print("Use the model: {}, model network: {}".format(MODEL,
+                                                      FLAGS.model_network))
   logits = inference(batch_ids, batch_values, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
