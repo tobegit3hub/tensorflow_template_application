@@ -25,10 +25,11 @@ Following are the supported features.
   - [x] Validate auc
   - [x] Inference online
 - [x] Network Model
-  - [x] LR
-  - [x] DNN
-  - [x] Wide and deep
-  - [x] Customized
+  - [x] Logistic regression
+  - [x] Deep neural network
+  - [x] Convolution neural network
+  - [x] Wide and deep model
+  - [x] Customized models
 - [x] Others
   - [x] Checkpoint
   - [x] TensorBoard
@@ -80,6 +81,12 @@ If you use other dataset like [iris](./data/iris/), no need to modify the code. 
 
 ```
 ./dense_classifier.py --train_tfrecords_file ./data/iris/iris_train.csv.tfrecords --validate_tfrecords_file ./data/iris/iris_test.csv.tfrecords --feature_size 4 --label_size 3
+```
+
+If you want to use CNN model, try this command.
+
+```
+./dense_classifier.py --train_tfrecords_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --validate_tfrecords_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --feature_size 262144 --label_size 2 --batch_size 2 --validate_batch_size 2 --epoch_number -1 --model cnn
 ```
 
 ### Export The Model

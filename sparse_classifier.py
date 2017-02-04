@@ -5,6 +5,7 @@ import json
 import math
 import numpy as np
 import os
+import pprint
 from sklearn import metrics
 import tensorflow as tf
 from tensorflow.contrib.session_bundle import exporter
@@ -75,6 +76,7 @@ def main():
   OUTPUT_PATH = FLAGS.output_path
   if not OUTPUT_PATH.startswith("fds://") and not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
+  pprint.PrettyPrinter().pprint(FLAGS.__flags)
 
   # Read TFRecords files for training
   def read_and_decode(filename_queue):
