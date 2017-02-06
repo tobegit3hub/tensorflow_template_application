@@ -1,4 +1,4 @@
-package com.tobe;
+package com.tobe.client;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
@@ -39,7 +39,7 @@ public class SparsePredictClient {
 
         String host = "127.0.0.1";
         int port = 9000;
-        String modelName = "cancer";
+        String modelName = "sparse";
         long modelVersion = 1;
 
         // Parse command-line arguments

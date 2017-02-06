@@ -1,4 +1,4 @@
-package com.tobe;
+package com.tobe.client;
 
 
 import io.grpc.ManagedChannel;
@@ -18,13 +18,13 @@ import java.util.logging.Logger;
 /**
  * The general predict client for TensorFlow models.
  */
-public class PredictClient {
-    private static final Logger logger = Logger.getLogger(PredictClient.class.getName());
+public class DensePredictClient {
+    private static final Logger logger = Logger.getLogger(DensePredictClient.class.getName());
     private final ManagedChannel channel;
     private final PredictionServiceGrpc.PredictionServiceBlockingStub blockingStub;
 
     // Initialize gRPC client
-    public PredictClient(String host, int port) {
+    public DensePredictClient(String host, int port) {
         //channel = ManagedChannelBuilder.forAddress(host, port)
         channel = NettyChannelBuilder.forAddress(host, port)
                 // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
@@ -39,7 +39,7 @@ public class PredictClient {
 
         String host = "127.0.0.1";
         int port = 9000;
-        String modelName = "cancer";
+        String modelName = "dense";
         long modelVersion = 1;
 
         // Parse command-line arguments
@@ -51,7 +51,7 @@ public class PredictClient {
         }
 
         // Run predict client to send request
-        PredictClient client = new PredictClient(host, port);
+        DensePredictClient client = new DensePredictClient(host, port);
 
         try {
             client.do_predict(modelName, modelVersion);
