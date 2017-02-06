@@ -16,9 +16,9 @@ Following are the supported features.
   - [x] [Python gPRC client](./python_predict_client/)
   - [x] [Java gPRC client](./java_predict_client/)
   - [x] [Scala gPRC client](./java_predict_client/)
+  - [x] [Golang client](./golang_predict_client/)
   - [ ] Spark client
   - [ ] C++ client
-  - [ ] Golang client
 - [x] Use Cases
   - [x] Train model
   - [x] Export model
