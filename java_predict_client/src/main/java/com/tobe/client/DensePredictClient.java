@@ -30,6 +30,7 @@ public class DensePredictClient {
                 // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
                 // needing certificates.
                 .usePlaintext(true)
+                .maxMessageSize(100 * 1024 * 1024)
                 .build();
         blockingStub = PredictionServiceGrpc.newBlockingStub(channel);
     }
