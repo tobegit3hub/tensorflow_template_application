@@ -8,9 +8,8 @@ import org.tensorflow.example._
 import org.tensorflow.hadoop.io.TFRecordFileOutputFormat
 
 /**
-  * Generate Sparse TFRecords with Spark.
+  * Generate sparse TFRecords with Spark.
   */
-
 object GenerateSparseTfrecords {
 
   def main(args: Array[String]) {

@@ -206,7 +206,7 @@ public class SparsePredictClient {
         // Request gRPC server
         Predict.PredictResponse response;
         try {
-            response = blockingStub.predict(request);
+            response = blockingStub.withDeadlineAfter(10, TimeUnit.SECONDS).predict(request);
             java.util.Map<java.lang.String, org.tensorflow.framework.TensorProto> outputs = response.getOutputs();
             for (java.util.Map.Entry<java.lang.String, org.tensorflow.framework.TensorProto> entry : outputs.entrySet()) {
                 System.out.println("Response with the key: " + entry.getKey() + ", value: " + entry.getValue());
