@@ -2,6 +2,7 @@
 
 import datetime
 import json
+import logging
 import math
 import numpy as np
 import os
@@ -13,6 +14,7 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
+flags.DEFINE_boolean("enable_colored_log", True, "Enable colored log")
 flags.DEFINE_string("train_tfrecords_file",
                     "./data/a8a/a8a_train.libsvm.tfrecords",
                     "The glob pattern of train TFRecords files")
@@ -55,7 +57,10 @@ flags.DEFINE_string("inference_result_file", "./inference_result.txt",
 
 
 def main():
-  # Pre-process hyperparameters
+  # Get hyperparameters
+  if FLAGS.enable_colored_log:
+    import coloredlogs
+    coloredlogs.install()
   FEATURE_SIZE = FLAGS.feature_size
   LABEL_SIZE = FLAGS.label_size
   EPOCH_NUMBER = FLAGS.epoch_number
@@ -236,11 +241,11 @@ def main():
     elif MODEL == "customized":
       return customized_inference(sparse_ids, sparse_values, is_train)
     else:
-      print("Unknown model, exit now")
+      logging.error("Unknown model, exit now")
       exit(1)
 
-  print("Use the model: {}, model network: {}".format(MODEL,
-                                                      FLAGS.model_network))
+  logging.info("Use the model: {}, model network: {}".format(
+      MODEL, FLAGS.model_network))
   logits = inference(batch_ids, batch_values, True)
   batch_labels = tf.to_int64(batch_labels)
   cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
@@ -248,7 +253,8 @@ def main():
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
-    print("Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
+    logging.info("Enable learning rate decay rate: {}".format(
+        FLAGS.lr_decay_rate))
     starter_learning_rate = FLAGS.learning_rate
     learning_rate = tf.train.exponential_decay(starter_learning_rate,
                                                global_step,
@@ -335,7 +341,7 @@ def main():
 
   # Create session to run
   with tf.Session() as sess:
-    print("Start to run with mode: {}".format(MODE))
+    logging.info("Start to run with mode: {}".format(MODE))
     writer = tf.train.SummaryWriter(OUTPUT_PATH, sess.graph)
     sess.run(tf.initialize_all_variables())
     sess.run(tf.initialize_local_variables())
@@ -357,7 +363,7 @@ def main():
                 [train_accuracy, train_auc, validate_accuracy, validate_auc,
                  summary_op])
             end_time = datetime.datetime.now()
-            print(
+            logging.info(
                 "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".format(
                     end_time - start_time, step, loss_value,
                     train_accuracy_value, train_auc_value,
@@ -375,7 +381,7 @@ def main():
 
     elif MODE == "export":
       if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
-        print("No checkpoint found, exit now")
+        logging.error("No checkpoint found, exit now")
         exit(1)
 
       # Export the model
@@ -384,7 +390,7 @@ def main():
 
     elif MODE == "inference":
       if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
-        print("No checkpoint found, exit now")
+        logging.error("No checkpoint found, exit now")
         exit(1)
 
       # Load inference test data
@@ -433,16 +439,17 @@ def main():
                                                predict_labels,
                                                pos_label=0)
       auc = metrics.auc(fpr, tpr)
-      print("[{}] Inference accuracy: {}, auc: {}".format(
+      logging.info("[{}] Inference accuracy: {}, auc: {}".format(
           end_time - start_time, accuracy, auc))
 
       # Save result into the file
       np.savetxt(inference_result_file_name, prediction, delimiter=",")
-      print("Save result to file: {}".format(inference_result_file_name))
+      logging.info("Save result to file: {}".format(
+          inference_result_file_name))
 
 
 def get_optimizer(optimizer, learning_rate):
-  print("Use the optimizer: {}".format(optimizer))
+  logging.info("Use the optimizer: {}".format(optimizer))
   if optimizer == "sgd":
     return tf.train.GradientDescentOptimizer(learning_rate)
   elif optimizer == "adadelta":
@@ -456,13 +463,13 @@ def get_optimizer(optimizer, learning_rate):
   elif optimizer == "rmsprop":
     return tf.train.RMSPropOptimizer(learning_rate)
   else:
-    print("Unknow optimizer, exit now")
+    logging.error("Unknow optimizer, exit now")
     exit(1)
 
 
 def restore_session_from_checkpoint(sess, saver, checkpoint):
   if checkpoint:
-    print("Restore session from checkpoint: {}".format(checkpoint))
+    logging.info("Restore session from checkpoint: {}".format(checkpoint))
     saver.restore(sess, checkpoint)
     return True
   else:
@@ -470,7 +477,7 @@ def restore_session_from_checkpoint(sess, saver, checkpoint):
 
 
 def export_model(sess, saver, signature, model_path, model_version):
-  print("Export the model to {}".format(model_path))
+  logging.info("Export the model to {}".format(model_path))
   model_exporter = exporter.Exporter(saver)
   model_exporter.init(sess.graph.as_graph_def(),
                       named_graph_signatures=signature)
