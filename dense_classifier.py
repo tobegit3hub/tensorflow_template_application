@@ -498,7 +498,10 @@ def export_model(sess, saver, signature, model_path, model_version):
   model_exporter = exporter.Exporter(saver)
   model_exporter.init(sess.graph.as_graph_def(),
                       named_graph_signatures=signature)
-  model_exporter.export(model_path, tf.constant(model_version), sess)
+  try:
+    model_exporter.export(model_path, tf.constant(model_version), sess)
+  except Exception as e:
+    logging.error("Fail to export model, exception: {}".format(e))
 
 
 if __name__ == "__main__":
