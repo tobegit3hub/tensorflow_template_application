@@ -1,16 +1,35 @@
-# Python Predict Client
+# Cpp Predict Client
 
 ## Introduction
 
 TensorFlow serving is the gRPC service for general TensorFlow models. We can implement the C++ gRPC client to predict.
 
+If you are using `bazel`, refer to to [inception_client.cc](https://github.com/tensorflow/serving/pull/300)
+
 ## Usage
 
-1. Export the TensorFlow models.
-2. Run with `./predict_client.py --host 127.0.0.1 --port 9000 --model_name cancer --model_version 1`
+Add the binary in `tensorflow_serving/example/BUILD`.
 
-## Development
+```
+cc_binary(
+    name = "tensorflow_model_client",
+    srcs = [
+        "serving_client_cpp.cc",
+    ],
+    deps = [
+        "//tensorflow_serving/apis:prediction_service_proto",
+    ],
+)
+```
 
-Build protobuf from source and refer to <https://github.com/google/protobuf/blob/master/src/README.md>.
+Compile the project.
 
-Generetate code from proto files.
+```
+bazel build //tensorflow_serving/example:tensorflow_model_client
+```
+
+Run the predict client.
+
+```
+bazel-bin/tensorflow_serving/example/tensorflow_model_client
+```

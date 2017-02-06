@@ -16,9 +16,10 @@ Following are the supported features.
   - [x] [Python gPRC client](./python_predict_client/)
   - [x] [Java gPRC client](./java_predict_client/)
   - [x] [Scala gPRC client](./java_predict_client/)
-  - [x] [Golang client](./golang_predict_client/)
+  - [x] [Golang gRPC client](./golang_predict_client/)
+  - [x] [C++ gRPC client](./cpp_predict_client/)
   - [ ] Spark client
-  - [ ] C++ client
+  - [ ] Android client
 - [x] Use Cases
   - [x] Train model
   - [x] Export model
@@ -38,6 +39,7 @@ Following are the supported features.
   - [x] Optimizers
   - [x] Learning rate decay
   - [x] Batch normalization
+  - [ ] Distributed training
 
 ## Usage
 
