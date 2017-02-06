@@ -24,10 +24,11 @@ object ScalaDensePredictClient {
     val client: DensePredictClient = new DensePredictClient(host, port)
 
     // Run predict client to send request
-    client.do_predict(modelName, modelVersion)
+    client.predict_example(modelName, modelVersion)
 
     System.out.println("End of predict client")
     // TODO: Exit the project well
+    System.exit(0)
 
   }
 

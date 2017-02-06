@@ -20,17 +20,17 @@ object GenerateDenseTfrecords {
 
     val Array(inputPath, outputPath) = args
 
-    val sparkConf = new SparkConf().setAppName("TFRecord Convert")
+    val sparkConf = new SparkConf().setAppName("Generate TFRecord")
     val sc = new SparkContext(sparkConf)
     val fs = FileSystem.get(sc.hadoopConfiguration)
 
-    val features = transferToTFRecords(sc.textFile(inputPath))
+    val features = csvToTFRecords(sc.textFile(inputPath))
 
     fs.delete(new Path(outputPath), true)
     features.saveAsNewAPIHadoopFile[TFRecordFileOutputFormat](outputPath)
   }
 
-  def transferToTFRecords(rdd: RDD[String]) = {
+  def csvToTFRecords(rdd: RDD[String]) = {
     rdd.map(line => {
       val arr = line.split(",", 2)
       val label = FloatList.newBuilder().addValue(arr(0).toFloat).build()

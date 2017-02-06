@@ -55,7 +55,7 @@ public class SparsePredictClient {
         SparsePredictClient client = new SparsePredictClient(host, port);
 
         try {
-            client.do_predict(modelName, modelVersion);
+            client.predict_example(modelName, modelVersion);
         } catch (Exception e) {
             System.out.println(e);
         } finally {
@@ -73,7 +73,7 @@ public class SparsePredictClient {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
 
-    public void do_predict(String modelName, long modelVersion) {
+    public void predict_example(String modelName, long modelVersion) {
 
         /*  Example data:
             0 5:1 6:1 17:1 21:1 35:1 40:1 53:1 63:1 71:1 73:1 74:1 76:1 80:1 83:1
@@ -199,6 +199,10 @@ public class SparsePredictClient {
         shapeTensorBuilder.setDtype(DataType.DT_INT64).setTensorShape(shapeShape);
         TensorProto shapeTensorProto = shapeTensorBuilder.build();
 
+        predict(modelName, modelVersion, keysTensorProto, indexsTensorProto, idsTensorProto, valuesTensorProto, shapeTensorProto);
+    }
+
+    public void predict(String modelName, long modelVersion, TensorProto keysTensorProto, TensorProto indexsTensorProto, TensorProto idsTensorProto, TensorProto valuesTensorProto, TensorProto shapeTensorProto) {
         // Generate gRPC request
         com.google.protobuf.Int64Value version = com.google.protobuf.Int64Value.newBuilder().setValue(modelVersion).build();
         Model.ModelSpec modelSpec = Model.ModelSpec.newBuilder().setName(modelName).setVersion(version).build();

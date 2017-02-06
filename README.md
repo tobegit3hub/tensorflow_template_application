@@ -18,20 +18,21 @@ Following are the supported features.
   - [x] [Scala gPRC client](./java_predict_client/)
   - [x] [Golang gRPC client](./golang_predict_client/)
   - [x] [C++ gRPC client](./cpp_predict_client/)
-  - [ ] Spark client
+  - [x] [Spark client](./java_predict_client/)
   - [ ] Android client
 - [x] Use Cases
   - [x] Train model
   - [x] Export model
-  - [x] Validate auc
+  - [x] Validate acc/auc
   - [x] Inference online
+  - [x] Inference offline
 - [x] Network Model
   - [x] Logistic regression
   - [x] Deep neural network
   - [x] Convolution neural network
   - [x] Wide and deep model
   - [x] Customized models
-- [x] Others
+- [ ] Others
   - [x] Checkpoint
   - [x] TensorBoard
   - [x] Exporter

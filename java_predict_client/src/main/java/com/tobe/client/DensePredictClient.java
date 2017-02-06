@@ -55,7 +55,7 @@ public class DensePredictClient {
         DensePredictClient client = new DensePredictClient(host, port);
 
         try {
-            client.do_predict(modelName, modelVersion);
+            client.predict_example(modelName, modelVersion);
         } catch (Exception e) {
             System.out.println(e);
         } finally {
@@ -73,7 +73,7 @@ public class DensePredictClient {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS);
     }
 
-    public void do_predict(String modelName, long modelVersion) {
+    public void predict_example(String modelName, long modelVersion) {
         // Generate keys TensorProto
         int[][] keysTensorData = new int[][]{
                 {1},
@@ -115,6 +115,10 @@ public class DensePredictClient {
         featuresTensorBuilder.setDtype(org.tensorflow.framework.DataType.DT_FLOAT).setTensorShape(featuresShape);
         TensorProto featuresTensorProto = featuresTensorBuilder.build();
 
+        predict(modelName, modelVersion, featuresTensorProto, keysTensorProto);
+    }
+
+    public void predict(String modelName, long modelVersion, TensorProto featuresTensorProto, TensorProto keysTensorProto) {
         // Generate gRPC request
         com.google.protobuf.Int64Value version = com.google.protobuf.Int64Value.newBuilder().setValue(modelVersion).build();
         Model.ModelSpec modelSpec = Model.ModelSpec.newBuilder().setName(modelName).setVersion(version).build();
