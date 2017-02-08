@@ -118,9 +118,9 @@ tensorboard --logdir ./tensorboard/
 
 Then go to `http://127.0.0.1:6006` in the browser.
 
-### Serving And Predicting
+### Serving and Predicting
 
-The exported model is compatiable with [TensorFlow Serving](https://github.com/tensorflow/serving). You can follow the document and run the `tensorflow_model_server`.
+The exported model is compatible with [TensorFlow Serving](https://github.com/tensorflow/serving). You can follow the document and run the `tensorflow_model_server`.
 
 ```
 ./tensorflow_model_server --port=9000 --model_name=dense --model_base_path=./model/
