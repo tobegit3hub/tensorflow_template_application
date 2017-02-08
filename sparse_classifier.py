@@ -14,7 +14,7 @@ from tensorflow.contrib.session_bundle import exporter
 # Define hyperparameters
 flags = tf.app.flags
 FLAGS = flags.FLAGS
-flags.DEFINE_boolean("enable_colored_log", True, "Enable colored log")
+flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
 flags.DEFINE_string("train_tfrecords_file",
                     "./data/a8a/a8a_train.libsvm.tfrecords",
                     "The glob pattern of train TFRecords files")
