@@ -8,6 +8,13 @@ You can compile the project easily and change the inference data for your Tensor
 
 ## Usage
 
+Install `protoc` and requirements.
+
+```
+go get -u github.com/golang/protobuf/{proto,protoc-gen-go}
+go get -u google.golang.org/grpc
+```
+
 Generate protobuf files.
 
 ```
@@ -19,6 +26,8 @@ cd ./src/
 Compile the project.
 
 ```
+# Setup $GOPATH
+
 go build -x
 ```
 
