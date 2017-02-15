@@ -26,11 +26,15 @@ object GenerateDenseTfrecords {
 
     val features = csvToTFRecords(sc.textFile(inputPath))
 
-    fs.delete(new Path(outputPath), true)
+    // Only work for HDFS
+    //fs.delete(new Path(outputPath), true)
+
     features.saveAsNewAPIHadoopFile[TFRecordFileOutputFormat](outputPath)
   }
 
   def csvToTFRecords(rdd: RDD[String]) = {
+    // Shuffle the items
+    //rdd.repartition(1000).map(line => {
     rdd.map(line => {
       val arr = line.split(",", 2)
       val label = FloatList.newBuilder().addValue(arr(0).toFloat).build()
