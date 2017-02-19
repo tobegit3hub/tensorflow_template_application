@@ -291,8 +291,8 @@ def main():
       MODEL, FLAGS.model_network))
   logits = inference(batch_features, True)
   batch_labels = tf.to_int64(batch_labels)
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits,
-                                                                 batch_labels)
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
+                                                                 labels=batch_labels)
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
@@ -323,7 +323,7 @@ def main():
   sparse_labels = tf.reshape(batch_labels, [-1, 1])
   derived_size = tf.shape(batch_labels)[0]
   indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-  concated = tf.concat(1, [indices, sparse_labels])
+  concated = tf.concat(concat_dim=1, values=[indices, sparse_labels])
   outshape = tf.pack([derived_size, LABEL_SIZE])
   new_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
   _, train_auc = tf.contrib.metrics.streaming_auc(train_softmax,
@@ -343,7 +343,7 @@ def main():
   sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
   derived_size = tf.shape(validate_batch_labels)[0]
   indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-  concated = tf.concat(1, [indices, sparse_labels])
+  concated = tf.concat(concat_dim=1, values=[indices, sparse_labels])
   outshape = tf.pack([derived_size, LABEL_SIZE])
   new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
   _, validate_auc = tf.contrib.metrics.streaming_auc(validate_softmax,
@@ -366,19 +366,19 @@ def main():
 
   # Initialize saver and summary
   saver = tf.train.Saver()
-  tf.scalar_summary("loss", loss)
-  tf.scalar_summary("train_accuracy", train_accuracy)
-  tf.scalar_summary("train_auc", train_auc)
-  tf.scalar_summary("validate_accuracy", validate_accuracy)
-  tf.scalar_summary("validate_auc", validate_auc)
-  summary_op = tf.merge_all_summaries()
+  tf.summary.scalar("loss", loss)
+  tf.summary.scalar("train_accuracy", train_accuracy)
+  tf.summary.scalar("train_auc", train_auc)
+  tf.summary.scalar("validate_accuracy", validate_accuracy)
+  tf.summary.scalar("validate_auc", validate_auc)
+  summary_op = tf.summary.merge_all()
 
   # Create session to run
   with tf.Session() as sess:
     logging.info("Start to run with mode: {}".format(MODE))
-    writer = tf.train.SummaryWriter(OUTPUT_PATH, sess.graph)
-    sess.run(tf.initialize_all_variables())
-    sess.run(tf.initialize_local_variables())
+    writer = tf.summary.FileWriter(OUTPUT_PATH, sess.graph)
+    sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())
 
     if MODE == "train":
       # Restore session and start queue runner
