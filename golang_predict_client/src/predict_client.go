@@ -8,7 +8,6 @@ import (
 	framework "tensorflow/core/framework"
 	pb "tensorflow_serving"
 
-	google_protobuf "github.com/golang/protobuf/ptypes/wrappers"
 	"golang.org/x/net/context"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -71,132 +70,38 @@ func main() {
 }
 
 func newDensePredictRequest(modelName *string, modelVersion *int64) *pb.PredictRequest {
-	return &pb.PredictRequest{
-		ModelSpec: &pb.ModelSpec{
-			Name: *modelName,
-			Version: &google_protobuf.Int64Value{
-				Value: *modelVersion,
-			},
-		},
-		Inputs: map[string]*framework.TensorProto{
-			"keys": &framework.TensorProto{
-				Dtype: framework.DataType_DT_INT32,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 3,
-						},
-					},
-				},
-				IntVal: []int32{1, 2, 3},
-			},
-			"features": &framework.TensorProto{
-				Dtype: framework.DataType_DT_FLOAT,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 3,
-						},
-						&framework.TensorShapeProto_Dim{
-							Size: 9,
-						},
-					},
-				},
-				FloatVal: []float32{
-					1, 2, 3, 4, 5, 6, 7, 8, 9,
-					1, 2, 3, 4, 5, 6, 7, 8, 9,
-					1, 2, 3, 4, 5, 6, 7, 8, 9,
-				},
-			},
-		},
-	}
+	pr := newPredictRequest(*modelName, *modelVersion)
+	addInput(pr, "keys", framework.DataType_DT_INT32, []int32{1, 2, 3}, nil, nil)
+	addInput(pr, "features", framework.DataType_DT_FLOAT, []float32{
+		1, 2, 3, 4, 5, 6, 7, 8, 9,
+		1, 2, 3, 4, 5, 6, 7, 8, 9,
+		1, 2, 3, 4, 5, 6, 7, 8, 9,
+	}, []int64{3, 9}, nil)
+	return pr
 }
 
 // Example data:
 // 0 5:1 6:1 17:1 21:1 35:1 40:1 53:1 63:1 71:1 73:1 74:1 76:1 80:1 83:1
 // 1 5:1 7:1 17:1 22:1 36:1 40:1 51:1 63:1 67:1 73:1 74:1 76:1 81:1 83:1
 func newSparsePredictRequest(modelName *string, modelVersion *int64) *pb.PredictRequest {
-	return &pb.PredictRequest{
-		ModelSpec: &pb.ModelSpec{
-			Name: *modelName,
-			Version: &google_protobuf.Int64Value{
-				Value: *modelVersion,
-			},
-		},
-		Inputs: map[string]*framework.TensorProto{
-			"keys": &framework.TensorProto{
-				Dtype: framework.DataType_DT_INT32,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 2,
-						},
-					},
-				},
-				IntVal: []int32{1, 2},
-			},
-			"indexs": &framework.TensorProto{
-				Dtype: framework.DataType_DT_INT64,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 28,
-						},
-						&framework.TensorShapeProto_Dim{
-							Size: 2,
-						},
-					},
-				},
-				Int64Val: []int64{
-					0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5,
-					0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11,
-					0, 12, 0, 13, 1, 0, 1, 1, 1, 2, 1, 3,
-					1, 4, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9,
-					1, 10, 1, 11, 1, 12, 1, 13,
-				},
-			},
-			"ids": &framework.TensorProto{
-				Dtype: framework.DataType_DT_INT64,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 28,
-						},
-					},
-				},
-				Int64Val: []int64{
-					5, 6, 17, 21, 35, 40, 53, 63, 71, 73, 74, 76, 80, 83,
-					5, 7, 17, 22, 36, 40, 51, 63, 67, 73, 74, 76, 81, 83,
-				},
-			},
-			"values": &framework.TensorProto{
-				Dtype: framework.DataType_DT_FLOAT,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 28,
-						},
-					},
-				},
-				FloatVal: []float32{
-					1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-					1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-					1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
-				},
-			},
-			"shape": &framework.TensorProto{
-				Dtype: framework.DataType_DT_INT64,
-				TensorShape: &framework.TensorShapeProto{
-					Dim: []*framework.TensorShapeProto_Dim{
-						&framework.TensorShapeProto_Dim{
-							Size: 2,
-						},
-					},
-				},
-				Int64Val: []int64{
-					2, 124,
-				},
-			},
-		},
-	}
+	pr := newPredictRequest(*modelName, *modelVersion)
+	addInput(pr, "keys", framework.DataType_DT_INT32, []int32{1, 2}, nil, nil)
+	addInput(pr, "indexs", framework.DataType_DT_INT64, []int64{
+		0, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5,
+		0, 6, 0, 7, 0, 8, 0, 9, 0, 10, 0, 11,
+		0, 12, 0, 13, 1, 0, 1, 1, 1, 2, 1, 3,
+		1, 4, 1, 5, 1, 6, 1, 7, 1, 8, 1, 9,
+		1, 10, 1, 11, 1, 12, 1, 13,
+	}, []int64{28, 2}, nil)
+	addInput(pr, "ids", framework.DataType_DT_INT64, []int64{
+		5, 6, 17, 21, 35, 40, 53, 63, 71, 73, 74, 76, 80, 83,
+		5, 7, 17, 22, 36, 40, 51, 63, 67, 73, 74, 76, 81, 83,
+	}, nil, nil)
+	addInput(pr, "values", framework.DataType_DT_FLOAT, []float32{
+		1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+		1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+		1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0,
+	}, nil, nil)
+	addInput(pr, "shape", framework.DataType_DT_INT64, []int64{2, 124}, nil, nil)
+	return pr
 }
