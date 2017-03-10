@@ -16,11 +16,10 @@ from tensorflow.contrib.session_bundle import exporter
 flags = tf.app.flags
 FLAGS = flags.FLAGS
 flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
-flags.DEFINE_string("train_tfrecords_file",
-                    "./data/cancer/cancer_train.csv.tfrecords",
+flags.DEFINE_string("input_file_format", "tfrecord", "Input file format")
+flags.DEFINE_string("train_file", "./data/cancer/cancer_train.csv.tfrecords",
                     "The glob pattern of train TFRecords files")
-flags.DEFINE_string("validate_tfrecords_file",
-                    "./data/cancer/cancer_test.csv.tfrecords",
+flags.DEFINE_string("validate_file", "./data/cancer/cancer_test.csv.tfrecords",
                     "The glob pattern of validate TFRecords files")
 flags.DEFINE_integer("feature_size", 9, "Number of feature size")
 flags.DEFINE_integer("label_size", 2, "Number of label size")
@@ -63,6 +62,10 @@ def main():
     import coloredlogs
     coloredlogs.install()
   logging.basicConfig(level=logging.INFO)
+  INPUT_FILE_FORMAT = FLAGS.input_file_format
+  if INPUT_FILE_FORMAT not in ["tfrecord", "csv"]:
+    logging.error("Unknow input file format: {}".format(INPUT_FILE_FORMAT))
+    exit(1)
   FEATURE_SIZE = FLAGS.feature_size
   LABEL_SIZE = FLAGS.label_size
   EPOCH_NUMBER = FLAGS.epoch_number
@@ -85,7 +88,7 @@ def main():
   pprint.PrettyPrinter().pprint(FLAGS.__flags)
 
   # Process TFRecoreds files
-  def read_and_decode(filename_queue):
+  def read_and_decode_tfrecord(filename_queue):
     reader = tf.TFRecordReader()
     _, serialized_example = reader.read(filename_queue)
     features = tf.parse_single_example(
@@ -98,11 +101,29 @@ def main():
     features = features["features"]
     return label, features
 
+  def read_and_decode_csv(filename_queue):
+    # TODO: Not generic for all datasets
+    reader = tf.TextLineReader()
+    key, value = reader.read(filename_queue)
+
+    # Default values, in case of empty columns. Also specifies the type of the
+    # decoded result.
+    #record_defaults = [[1], [1], [1], [1], [1]]
+    record_defaults = [[1], [1.0], [1.0], [1.0], [1.0]]
+    col1, col2, col3, col4, col5 = tf.decode_csv(
+        value, record_defaults=record_defaults)
+    label = col1
+    features = tf.stack([col2, col3, col4, col4])
+    return label, features
+
   # Read TFRecords files for training
   filename_queue = tf.train.string_input_producer(
-      tf.train.match_filenames_once(FLAGS.train_tfrecords_file),
+      tf.train.match_filenames_once(FLAGS.train_file),
       num_epochs=EPOCH_NUMBER)
-  label, features = read_and_decode(filename_queue)
+  if INPUT_FILE_FORMAT == "tfrecord":
+    label, features = read_and_decode_tfrecord(filename_queue)
+  elif INPUT_FILE_FORMAT == "csv":
+    label, features = read_and_decode_csv(filename_queue)
   batch_labels, batch_features = tf.train.shuffle_batch(
       [label, features],
       batch_size=FLAGS.batch_size,
@@ -112,9 +133,14 @@ def main():
 
   # Read TFRecords file for validatioin
   validate_filename_queue = tf.train.string_input_producer(
-      tf.train.match_filenames_once(FLAGS.validate_tfrecords_file),
+      tf.train.match_filenames_once(FLAGS.validate_file),
       num_epochs=EPOCH_NUMBER)
-  validate_label, validate_features = read_and_decode(validate_filename_queue)
+  if INPUT_FILE_FORMAT == "tfrecord":
+    validate_label, validate_features = read_and_decode_tfrecord(
+        validate_filename_queue)
+  elif INPUT_FILE_FORMAT == "csv":
+    validate_label, validate_features = read_and_decode_csv(
+        validate_filename_queue)
   validate_batch_labels, validate_batch_features = tf.train.shuffle_batch(
       [validate_label, validate_features],
       batch_size=FLAGS.validate_batch_size,
@@ -292,8 +318,8 @@ def main():
       MODEL, FLAGS.model_network))
   logits = inference(batch_features, True)
   batch_labels = tf.to_int64(batch_labels)
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-                                                                 labels=batch_labels)
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+      logits=logits, labels=batch_labels)
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:

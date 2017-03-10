@@ -83,13 +83,15 @@ Using different models or hyperparameters is easy with TensorFlow flags.
 If you use other dataset like [iris](./data/iris/), no need to modify the code. Just run with parameters to specify the TFRecords files.
 
 ```
-./dense_classifier.py --train_tfrecords_file ./data/iris/iris_train.csv.tfrecords --validate_tfrecords_file ./data/iris/iris_test.csv.tfrecords --feature_size 4 --label_size 3
+./dense_classifier.py --train_file ./data/iris/iris_train.csv.tfrecords --validate_file ./data/iris/iris_test.csv.tfrecords --feature_size 4 --label_size 3  --enable_colored_log
+
+./dense_classifier.py --train_file ./data/iris/iris_train.csv --validate_file ./data/iris/iris_test.csv --feature_size 4 --label_size 3 --input_file_format csv --enable_colored_log
 ```
 
 If you want to use CNN model, try this command.
 
 ```
-./dense_classifier.py --train_tfrecords_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --validate_tfrecords_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --feature_size 262144 --label_size 2 --batch_size 2 --validate_batch_size 2 --epoch_number -1 --model cnn
+./dense_classifier.py --train_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --validate_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --feature_size 262144 --label_size 2 --batch_size 2 --validate_batch_size 2 --epoch_number -1 --model cnn
 ```
 
 ### Export The Model
