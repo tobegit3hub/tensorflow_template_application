@@ -399,13 +399,14 @@ def main():
   tf.summary.scalar("validate_accuracy", validate_accuracy)
   tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
+  init_op = [tf.global_variables_initializer(), tf.local_variables_initializer(
+  )]
 
   # Create session to run
   with tf.Session() as sess:
     logging.info("Start to run with mode: {}".format(MODE))
     writer = tf.summary.FileWriter(OUTPUT_PATH, sess.graph)
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
+    sess.run(init_op)
 
     if MODE == "train":
       # Restore session and start queue runner

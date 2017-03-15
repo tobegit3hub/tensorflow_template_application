@@ -250,8 +250,8 @@ def main():
       MODEL, FLAGS.model_network))
   logits = inference(batch_ids, batch_values, True)
   batch_labels = tf.to_int64(batch_labels)
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits,
-                                                                 labels=batch_labels)
+  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+      logits=logits, labels=batch_labels)
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
@@ -340,13 +340,14 @@ def main():
   tf.summary.scalar("validate_accuracy", validate_accuracy)
   tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
+  init_op = [tf.global_variables_initializer(), tf.local_variables_initializer(
+  )]
 
   # Create session to run
   with tf.Session() as sess:
     logging.info("Start to run with mode: {}".format(MODE))
     writer = tf.summary.FileWriter(OUTPUT_PATH, sess.graph)
-    sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())
+    sess.run(init_op)
 
     if MODE == "train":
       # Restore session and start queue runner
