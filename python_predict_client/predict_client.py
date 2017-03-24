@@ -27,8 +27,8 @@ def main():
   keys = numpy.asarray([1, 2, 3])
   keys_tensor_proto = tf.contrib.util.make_tensor_proto(keys, dtype=tf.int32)
   features = numpy.asarray(
-      [[1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 2, 3, 4, 5, 6, 7, 8, 9],
-       [1, 2, 3, 4, 5, 6, 7, 8, 9]])
+      [[1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 1, 1, 1, 1, 1, 1, 1, 1],
+       [9, 8, 7, 6, 5, 4, 3, 2, 1], [9, 9, 9, 9, 9, 9, 9, 9, 9]])
   features_tensor_proto = tf.contrib.util.make_tensor_proto(features,
                                                             dtype=tf.float32)
 

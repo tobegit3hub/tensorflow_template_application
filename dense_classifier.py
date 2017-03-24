@@ -11,6 +11,12 @@ import pprint
 from sklearn import metrics
 import tensorflow as tf
 from tensorflow.contrib.session_bundle import exporter
+from tensorflow.python.saved_model import builder as saved_model_builder
+from tensorflow.python.saved_model import signature_constants
+from tensorflow.python.saved_model import signature_def_utils
+from tensorflow.python.saved_model import tag_constants
+from tensorflow.python.saved_model import utils
+from tensorflow.python.util import compat
 
 # Define hyperparameters
 flags = tf.app.flags
@@ -47,8 +53,11 @@ flags.DEFINE_float("lr_decay_rate", 0.96, "Learning rate decay rate")
 flags.DEFINE_string("optimizer", "adagrad", "The optimizer to train")
 flags.DEFINE_integer("steps_to_validate", 10,
                      "Steps to validate and print state")
-flags.DEFINE_string("mode", "train", "Support train, export, inference")
+flags.DEFINE_string("mode", "train",
+                    "Support train, export, inference, savedmodel")
 flags.DEFINE_string("model_path", "./model/", "The path of the model")
+flags.DEFINE_string("saved_model_path", "./saved_model/",
+                    "The path of the saved model")
 flags.DEFINE_integer("model_version", 1, "The version of the model")
 flags.DEFINE_string("inference_test_file", "./data/cancer_test.csv",
                     "The test file for inference")
@@ -399,8 +408,8 @@ def main():
   tf.summary.scalar("validate_accuracy", validate_accuracy)
   tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
-  init_op = [tf.global_variables_initializer(), tf.local_variables_initializer(
-  )]
+  init_op = [tf.global_variables_initializer(),
+             tf.local_variables_initializer()]
 
   # Create session to run
   with tf.Session() as sess:
@@ -449,6 +458,47 @@ def main():
       # Export the model
       export_model(sess, saver, model_signature, FLAGS.model_path,
                    FLAGS.model_version)
+
+    elif MODE == "savedmodel":
+      if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
+        logging.error("No checkpoint found, exit now")
+        exit(1)
+
+      logging.info("Export the saved model to {}".format(
+          FLAGS.saved_model_path))
+      export_path_base = FLAGS.saved_model_path
+      export_path = os.path.join(
+          compat.as_bytes(export_path_base),
+          compat.as_bytes(str(FLAGS.model_version)))
+
+      model_signature = signature_def_utils.build_signature_def(
+          inputs={
+              "keys": utils.build_tensor_info(keys_placeholder),
+              "features": utils.build_tensor_info(inference_features)
+          },
+          outputs={
+              "keys": utils.build_tensor_info(keys),
+              "softmax": utils.build_tensor_info(inference_softmax),
+              "prediction": utils.build_tensor_info(inference_op)
+          },
+          method_name=signature_constants.PREDICT_METHOD_NAME)
+
+      try:
+        builder = saved_model_builder.SavedModelBuilder(export_path)
+        builder.add_meta_graph_and_variables(
+            sess,
+            [tag_constants.SERVING],
+            signature_def_map={
+                signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+                model_signature,
+            },
+            #legacy_init_op=legacy_init_op)
+            legacy_init_op=tf.group(tf.initialize_all_tables(),
+                                    name="legacy_init_op"))
+
+        builder.save()
+      except Exception as e:
+        logging.error("Fail to export saved model, exception: {}".format(e))
 
     elif MODE == "inference":
       if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
