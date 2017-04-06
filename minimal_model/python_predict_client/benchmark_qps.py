@@ -2,6 +2,7 @@
 
 import numpy
 import multiprocessing
+import threading
 import time
 
 from grpc.beta import implementations
@@ -21,8 +22,9 @@ tf.app.flags.DEFINE_integer("benchmark_thread_number", 10, "")
 FLAGS = tf.app.flags.FLAGS
 
 
-def _create_rpc_callback():
+def _create_rpc_callback(event):
   def _callback(result_future):
+    event.set()
     exception = result_future.exception()
     if exception:
       print(exception)
@@ -59,15 +61,21 @@ def test_one_process(i):
   request_number = FLAGS.benchmark_test_number
   #start_time = time.time()
 
+  events = []
   for i in range(request_number):
+    event = threading.Event()
     result_future = stub.Predict.future(request, request_timeout)
     #result_future = stub.Predict.future(request, 0.00000001)
-    result_future.add_done_callback(_create_rpc_callback())
+    result_future.add_done_callback(_create_rpc_callback(event))
+    events.append(event)
     #result = stub.Predict(request, request_timeout)
 
     #end_time = time.time()
     #print("Average latency is: {} ms".format((end_time - start_time) * 1000 / request_number))
     #print("Average qps is: {}".format(request_number / (end_time - start_time)))
+
+  for event in events:
+    event.wait()
 
 
 def main():
