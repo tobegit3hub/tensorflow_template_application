@@ -29,5 +29,5 @@ cloudml models predict -n minial -s 127.0.0.1:9000 -f ./data.json
 ### Test python gRPC client
 
 ```
-./benchmark_predict_client.py --host 127.0.0.1 --port 9000 --model_name minial --model_version 1 --benchmark_batch_size 100  --benchmark_test_number 10000
+./benchmark_qps.py --host 127.0.0.1 --port 9000 --model_name minial --model_version 1 --benchmark_batch_size 100  --benchmark_test_number 10000
 ```
