@@ -431,6 +431,7 @@ def main():
         builder.add_meta_graph_and_variables(
             sess,
             [tag_constants.SERVING],
+            clear_devices=True,
             signature_def_map={
                 signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
                 model_signature,
@@ -535,7 +536,8 @@ def export_model(sess, saver, signature, model_path, model_version):
   logging.info("Export the model to {}".format(model_path))
   model_exporter = exporter.Exporter(saver)
   model_exporter.init(sess.graph.as_graph_def(),
-                      named_graph_signatures=signature)
+                      named_graph_signatures=signature,
+                      clear_devices=True)
   try:
     model_exporter.export(model_path, tf.constant(model_version), sess)
   except Exception as e:
