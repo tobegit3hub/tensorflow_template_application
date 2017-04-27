@@ -528,17 +528,17 @@ def main():
       accuracy = float(correct_label_number) / label_number
 
       # Compute auc
-      expected_labels = np.array(inference_data_labels)
-      predict_labels = prediction_softmax[:, 0]
-      fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
-                                               predict_labels,
-                                               pos_label=0)
+      y_true = np.array(inference_data_labels)
+      y_score = prediction_softmax[:, 1]
+      fpr, tpr, thresholds = metrics.roc_curve(y_true,
+                                               y_score,
+                                               pos_label=1)
       auc = metrics.auc(fpr, tpr)
       logging.info("[{}] Inference accuracy: {}, auc: {}".format(
           end_time - start_time, accuracy, auc))
 
       # Save result into the file
-      np.savetxt(inference_result_file_name, prediction, delimiter=",")
+      np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
       logging.info("Save result to file: {}".format(
           inference_result_file_name))
 
