@@ -1,3 +1,4 @@
-tensorflow>=0.10.0
+tensorflow>=1.0.0
+scipy
 scikit-learn>=0.17.1
 coloredlogs>=5.2
