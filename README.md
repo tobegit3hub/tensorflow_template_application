@@ -32,7 +32,7 @@ Following are the supported features.
   - [x] Convolution neural network
   - [x] Wide and deep model
   - [x] Customized models
-- [ ] Others
+- [x] Others
   - [x] Checkpoint
   - [x] TensorBoard
   - [x] Exporter
@@ -40,7 +40,7 @@ Following are the supported features.
   - [x] Optimizers
   - [x] Learning rate decay
   - [x] Batch normalization
-  - [ ] Distributed training
+  - [x] Distributed training
 
 ## Usage
 

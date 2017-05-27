@@ -79,7 +79,7 @@ def main(_):
 
             # Read TFRecords files
             filename_queue = tf.train.string_input_producer(
-                tf.train.match_filenames_once("../data/cancer_train.csv.tfrecords"),
+                tf.train.match_filenames_once("../data/cancer/cancer_train.csv.tfrecords"),
                 num_epochs=epoch_number)
             label, features = read_and_decode(filename_queue)
             batch_labels, batch_features = tf.train.shuffle_batch(
@@ -91,7 +91,7 @@ def main(_):
 
             validate_filename_queue = tf.train.string_input_producer(
                 tf.train.match_filenames_once(
-                    "../data/cancer_test.csv.tfrecords"),
+                    "../data/cancer/cancer_test.csv.tfrecords"),
                 num_epochs=epoch_number)
             validate_label, validate_features = read_and_decode(
                 validate_filename_queue)
@@ -143,7 +143,7 @@ def main(_):
 
             batch_labels = tf.to_int64(batch_labels)
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-                logits, batch_labels)
+                logits=logits, labels=batch_labels)
             loss = tf.reduce_mean(cross_entropy, name='xentropy_mean')
             if FLAGS.optimizer == "sgd":
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate)
@@ -171,8 +171,8 @@ def main(_):
             sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
             derived_size = tf.shape(validate_batch_labels)[0]
             indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-            concated = tf.concat(1, [indices, sparse_labels])
-            outshape = tf.pack([derived_size, num_labels])
+            concated = tf.concat(axis=1, values=[indices, sparse_labels])
+            outshape = tf.stack([derived_size, num_labels])
             new_validate_batch_labels = tf.sparse_to_dense(concated, outshape,
                                                            1.0, 0.0)
             _, auc_op = tf.contrib.metrics.streaming_auc(
@@ -190,13 +190,13 @@ def main(_):
 
             saver = tf.train.Saver()
             steps_to_validate = FLAGS.steps_to_validate
-            init_op = tf.initialize_all_variables()
+            init_op = tf.global_variables_initializer()
 
-            tf.scalar_summary('loss', loss)
-            tf.scalar_summary('accuracy', accuracy)
-            tf.scalar_summary('auc', auc_op)
+            tf.summary.scalar('loss', loss)
+            tf.summary.scalar('accuracy', accuracy)
+            tf.summary.scalar('auc', auc_op)
 
-            summary_op = tf.merge_all_summaries()
+            summary_op = tf.summary.merge_all()
 
         sv = tf.train.Supervisor(is_chief=(FLAGS.task_index == 0),
                                  logdir="./checkpoint/",
