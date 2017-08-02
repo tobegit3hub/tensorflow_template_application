@@ -503,6 +503,76 @@ def main():
       logging.info("Save result to file: {}".format(
           inference_result_file_name))
 
+    elif MODE == "inference_with_tfrecords":
+        if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
+            logging.error("No checkpoint found, exit now")
+            exit(1)
+
+        # Load inference test data
+        inference_result_file_name = "./inference_result.txt"
+        inference_test_file_name = "./data/a8a/a8a_test.libsvm.tfrecords"
+        #inference_test_file_name = "hdfs://namenode:8020/user/tobe/deep_recommend_system/data/a8a/a8a_test.libsvm.tfrecords"
+
+        # Read from TFRecords files
+        for serialized_example in tf.python_io.tf_record_iterator(inference_test_file_name):
+          # Get serialized example from file
+          example = tf.train.Example()
+          example.ParseFromString(serialized_example)
+          label = example.features.feature["label"].float_list.value
+          ids = example.features.feature["ids"].int64_list.value
+          values = example.features.feature["values"].float_list.value
+          print("label: {}, features: {}".format(label, " ".join([str(id) + ":" + str(value) for id, value in zip(ids, values)])))
+
+        labels = []
+        feature_ids = []
+        feature_values = []
+        feature_index = []
+        ins_num = 0
+        for line in open(inference_test_file_name, "r"):
+            tokens = line.split(" ")
+            labels.append(int(tokens[0]))
+            feature_num = 0
+            for feature in tokens[1:]:
+                feature_id, feature_value = feature.split(":")
+                feature_ids.append(int(feature_id))
+                feature_values.append(float(feature_value))
+                feature_index.append([ins_num, feature_num])
+                feature_num += 1
+            ins_num += 1
+
+        # Run inference
+        start_time = datetime.datetime.now()
+        prediction, prediction_softmax = sess.run(
+            [inference_op, inference_softmax],
+            feed_dict={sparse_index: feature_index,
+                       sparse_ids: feature_ids,
+                       sparse_values: feature_values,
+                       sparse_shape: [ins_num, FEATURE_SIZE]})
+
+        end_time = datetime.datetime.now()
+
+        # Compute accuracy
+        label_number = len(labels)
+        correct_label_number = 0
+        for i in range(label_number):
+            if labels[i] == prediction[i]:
+                correct_label_number += 1
+        accuracy = float(correct_label_number) / label_number
+
+        # Compute auc
+        expected_labels = np.array(labels)
+        predict_labels = prediction_softmax[:, 0]
+        fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
+                                                 predict_labels,
+                                                 pos_label=0)
+        auc = metrics.auc(fpr, tpr)
+        logging.info("[{}] Inference accuracy: {}, auc: {}".format(
+            end_time - start_time, accuracy, auc))
+
+        # Save result into the file
+        np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
+        logging.info("Save result to file: {}".format(
+            inference_result_file_name))
 
 def get_optimizer(optimizer, learning_rate):
   logging.info("Use the optimizer: {}".format(optimizer))
