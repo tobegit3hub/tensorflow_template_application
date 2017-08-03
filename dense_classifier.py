@@ -127,8 +127,7 @@ def main():
 
   # Read TFRecords files for training
   filename_queue = tf.train.string_input_producer(
-      tf.train.match_filenames_once(FLAGS.train_file),
-      num_epochs=EPOCH_NUMBER)
+      tf.train.match_filenames_once(FLAGS.train_file), num_epochs=EPOCH_NUMBER)
   if INPUT_FILE_FORMAT == "tfrecord":
     label, features = read_and_decode_tfrecord(filename_queue)
   elif INPUT_FILE_FORMAT == "csv":
@@ -163,22 +162,18 @@ def main():
   model_network_hidden_units = [int(i) for i in FLAGS.model_network.split()]
 
   def full_connect(inputs, weights_shape, biases_shape, is_train=True):
-    weights = tf.get_variable("weights",
-                              weights_shape,
-                              initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases",
-                             biases_shape,
-                             initializer=tf.random_normal_initializer())
+    weights = tf.get_variable(
+        "weights", weights_shape, initializer=tf.random_normal_initializer())
+    biases = tf.get_variable(
+        "biases", biases_shape, initializer=tf.random_normal_initializer())
     layer = tf.matmul(inputs, weights) + biases
 
     if FLAGS.enable_bn and is_train:
       mean, var = tf.nn.moments(layer, axes=[0])
-      scale = tf.get_variable("scale",
-                              biases_shape,
-                              initializer=tf.random_normal_initializer())
-      shift = tf.get_variable("shift",
-                              biases_shape,
-                              initializer=tf.random_normal_initializer())
+      scale = tf.get_variable(
+          "scale", biases_shape, initializer=tf.random_normal_initializer())
+      shift = tf.get_variable(
+          "shift", biases_shape, initializer=tf.random_normal_initializer())
       layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
                                         FLAGS.bn_epsilon)
     return layer
@@ -217,15 +212,14 @@ def main():
 
     for i in range(len(model_network_hidden_units) - 1):
       with tf.variable_scope("layer{}".format(i)):
-        layer = full_connect_relu(
-            layer,
-            [model_network_hidden_units[i], model_network_hidden_units[i + 1]],
-            [model_network_hidden_units[i + 1]], is_train)
+        layer = full_connect_relu(layer, [
+            model_network_hidden_units[i], model_network_hidden_units[i + 1]
+        ], [model_network_hidden_units[i + 1]], is_train)
 
     with tf.variable_scope("output"):
       layer = full_connect(layer,
-                           [model_network_hidden_units[-1], output_units],
-                           [output_units], is_train)
+                           [model_network_hidden_units[-1],
+                            output_units], [output_units], is_train)
     return layer
 
   def lr_inference(inputs, is_train=True):
@@ -243,67 +237,56 @@ def main():
 
     # [BATCH_SIZE, 512, 512, 1] -> [BATCH_SIZE, 128, 128, 8]
     with tf.variable_scope("conv0"):
-      weights = tf.get_variable("weights", [3, 3, 1, 8],
-                                initializer=tf.random_normal_initializer())
-      bias = tf.get_variable("bias", [8],
-                             initializer=tf.random_normal_initializer())
+      weights = tf.get_variable(
+          "weights", [3, 3, 1, 8], initializer=tf.random_normal_initializer())
+      bias = tf.get_variable(
+          "bias", [8], initializer=tf.random_normal_initializer())
 
-      layer = tf.nn.conv2d(inputs,
-                           weights,
-                           strides=[1, 1, 1, 1],
-                           padding="SAME")
+      layer = tf.nn.conv2d(
+          inputs, weights, strides=[1, 1, 1, 1], padding="SAME")
       layer = tf.nn.bias_add(layer, bias)
       layer = tf.nn.relu(layer)
-      layer = tf.nn.max_pool(layer,
-                             ksize=[1, 4, 4, 1],
-                             strides=[1, 4, 4, 1],
-                             padding="SAME")
+      layer = tf.nn.max_pool(
+          layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
 
     # [BATCH_SIZE, 128, 128, 8] -> [BATCH_SIZE, 32, 32, 8]
     with tf.variable_scope("conv1"):
-      weights = tf.get_variable("weights", [3, 3, 8, 8],
-                                initializer=tf.random_normal_initializer())
-      bias = tf.get_variable("bias", [8],
-                             initializer=tf.random_normal_initializer())
+      weights = tf.get_variable(
+          "weights", [3, 3, 8, 8], initializer=tf.random_normal_initializer())
+      bias = tf.get_variable(
+          "bias", [8], initializer=tf.random_normal_initializer())
 
-      layer = tf.nn.conv2d(layer,
-                           weights,
-                           strides=[1, 1, 1, 1],
-                           padding="SAME")
+      layer = tf.nn.conv2d(
+          layer, weights, strides=[1, 1, 1, 1], padding="SAME")
       layer = tf.nn.bias_add(layer, bias)
       layer = tf.nn.relu(layer)
-      layer = tf.nn.max_pool(layer,
-                             ksize=[1, 4, 4, 1],
-                             strides=[1, 4, 4, 1],
-                             padding="SAME")
+      layer = tf.nn.max_pool(
+          layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
 
     # [BATCH_SIZE, 32, 32, 8] -> [BATCH_SIZE, 8, 8, 8]
     with tf.variable_scope("conv2"):
-      weights = tf.get_variable("weights", [3, 3, 8, 8],
-                                initializer=tf.random_normal_initializer())
-      bias = tf.get_variable("bias", [8],
-                             initializer=tf.random_normal_initializer())
+      weights = tf.get_variable(
+          "weights", [3, 3, 8, 8], initializer=tf.random_normal_initializer())
+      bias = tf.get_variable(
+          "bias", [8], initializer=tf.random_normal_initializer())
 
-      layer = tf.nn.conv2d(layer,
-                           weights,
-                           strides=[1, 1, 1, 1],
-                           padding="SAME")
+      layer = tf.nn.conv2d(
+          layer, weights, strides=[1, 1, 1, 1], padding="SAME")
       layer = tf.nn.bias_add(layer, bias)
       layer = tf.nn.relu(layer)
-      layer = tf.nn.max_pool(layer,
-                             ksize=[1, 4, 4, 1],
-                             strides=[1, 4, 4, 1],
-                             padding="SAME")
+      layer = tf.nn.max_pool(
+          layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
 
     # [BATCH_SIZE, 8, 8, 8] -> [BATCH_SIZE, 8 * 8 * 8]
     layer = tf.reshape(layer, [-1, 8 * 8 * 8])
 
     # [BATCH_SIZE, 8 * 8 * 8] -> [BATCH_SIZE, LABEL_SIZE]
     with tf.variable_scope("output"):
-      weights = tf.get_variable("weights", [8 * 8 * 8, LABEL_SIZE],
-                                initializer=tf.random_normal_initializer())
-      bias = tf.get_variable("bias", [LABEL_SIZE],
-                             initializer=tf.random_normal_initializer())
+      weights = tf.get_variable(
+          "weights", [8 * 8 * 8, LABEL_SIZE],
+          initializer=tf.random_normal_initializer())
+      bias = tf.get_variable(
+          "bias", [LABEL_SIZE], initializer=tf.random_normal_initializer())
       layer = tf.add(tf.matmul(layer, weights), bias)
 
     return layer
@@ -332,14 +315,15 @@ def main():
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
-    logging.info("Enable learning rate decay rate: {}".format(
-        FLAGS.lr_decay_rate))
+    logging.info(
+        "Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
     starter_learning_rate = FLAGS.learning_rate
-    learning_rate = tf.train.exponential_decay(starter_learning_rate,
-                                               global_step,
-                                               100000,
-                                               FLAGS.lr_decay_rate,
-                                               staircase=True)
+    learning_rate = tf.train.exponential_decay(
+        starter_learning_rate,
+        global_step,
+        100000,
+        FLAGS.lr_decay_rate,
+        staircase=True)
   else:
     learning_rate = FLAGS.learning_rate
   optimizer = get_optimizer(FLAGS.optimizer, learning_rate)
@@ -351,8 +335,8 @@ def main():
   train_softmax = tf.nn.softmax(train_accuracy_logits)
   train_correct_prediction = tf.equal(
       tf.argmax(train_softmax, 1), batch_labels)
-  train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction,
-                                          tf.float32))
+  train_accuracy = tf.reduce_mean(
+      tf.cast(train_correct_prediction, tf.float32))
 
   # Define auc op for train data
   batch_labels = tf.cast(batch_labels, tf.int32)
@@ -371,8 +355,8 @@ def main():
   validate_batch_labels = tf.to_int64(validate_batch_labels)
   validate_correct_prediction = tf.equal(
       tf.argmax(validate_softmax, 1), validate_batch_labels)
-  validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
-                                             tf.float32))
+  validate_accuracy = tf.reduce_mean(
+      tf.cast(validate_correct_prediction, tf.float32))
 
   # Define auc op for validate data
   validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
@@ -393,11 +377,17 @@ def main():
   keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
   keys = tf.identity(keys_placeholder)
   model_signature = {
-      "inputs": exporter.generic_signature({"keys": keys_placeholder,
-                                            "features": inference_features}),
-      "outputs": exporter.generic_signature({"keys": keys,
-                                             "softmax": inference_softmax,
-                                             "prediction": inference_op})
+      "inputs":
+      exporter.generic_signature({
+          "keys": keys_placeholder,
+          "features": inference_features
+      }),
+      "outputs":
+      exporter.generic_signature({
+          "keys": keys,
+          "softmax": inference_softmax,
+          "prediction": inference_op
+      })
   }
 
   # Initialize saver and summary
@@ -408,8 +398,10 @@ def main():
   tf.summary.scalar("validate_accuracy", validate_accuracy)
   tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
-  init_op = [tf.global_variables_initializer(),
-             tf.local_variables_initializer()]
+  init_op = [
+      tf.global_variables_initializer(),
+      tf.local_variables_initializer()
+  ]
 
   # Create session to run
   with tf.Session() as sess:
@@ -431,14 +423,16 @@ def main():
           # Print state while training
           if step % FLAGS.steps_to_validate == 0:
             train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
-                [train_accuracy, train_auc, validate_accuracy, validate_auc,
-                 summary_op])
+                [
+                    train_accuracy, train_auc, validate_accuracy, validate_auc,
+                    summary_op
+                ])
             end_time = datetime.datetime.now()
             logging.info(
-                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".format(
-                    end_time - start_time, step, loss_value,
-                    train_accuracy_value, train_auc_value,
-                    validate_accuracy_value, validate_auc_value))
+                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
+                format(end_time - start_time, step, loss_value,
+                       train_accuracy_value, train_auc_value,
+                       validate_accuracy_value, validate_auc_value))
             writer.add_summary(summary_value, step)
             saver.save(sess, CHECKPOINT_FILE, global_step=step)
             start_time = end_time
@@ -464,8 +458,8 @@ def main():
         logging.error("No checkpoint found, exit now")
         exit(1)
 
-      logging.info("Export the saved model to {}".format(
-          FLAGS.saved_model_path))
+      logging.info(
+          "Export the saved model to {}".format(FLAGS.saved_model_path))
       export_path_base = FLAGS.saved_model_path
       export_path = os.path.join(
           compat.as_bytes(export_path_base),
@@ -494,8 +488,8 @@ def main():
                 model_signature,
             },
             #legacy_init_op=legacy_init_op)
-            legacy_init_op=tf.group(tf.initialize_all_tables(),
-                                    name="legacy_init_op"))
+            legacy_init_op=tf.group(
+                tf.initialize_all_tables(), name="legacy_init_op"))
 
         builder.save()
       except Exception as e:
@@ -531,17 +525,15 @@ def main():
       # Compute auc
       y_true = np.array(inference_data_labels)
       y_score = prediction_softmax[:, 1]
-      fpr, tpr, thresholds = metrics.roc_curve(y_true,
-                                               y_score,
-                                               pos_label=1)
+      fpr, tpr, thresholds = metrics.roc_curve(y_true, y_score, pos_label=1)
       auc = metrics.auc(fpr, tpr)
       logging.info("[{}] Inference accuracy: {}, auc: {}".format(
           end_time - start_time, accuracy, auc))
 
       # Save result into the file
       np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
-      logging.info("Save result to file: {}".format(
-          inference_result_file_name))
+      logging.info(
+          "Save result to file: {}".format(inference_result_file_name))
 
 
 def get_optimizer(optimizer, learning_rate):
@@ -575,9 +567,10 @@ def restore_session_from_checkpoint(sess, saver, checkpoint):
 def export_model(sess, saver, signature, model_path, model_version):
   logging.info("Export the model to {}".format(model_path))
   model_exporter = exporter.Exporter(saver)
-  model_exporter.init(sess.graph.as_graph_def(),
-                      named_graph_signatures=signature,
-                      clear_devices=True)
+  model_exporter.init(
+      sess.graph.as_graph_def(),
+      named_graph_signatures=signature,
+      clear_devices=True)
   try:
     model_exporter.export(model_path, tf.constant(model_version), sess)
   except Exception as e:

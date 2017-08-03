@@ -40,7 +40,7 @@ Following are the supported features.
   - [x] Optimizers
   - [x] Learning rate decay
   - [x] Batch normalization
-  - [x] Distributed training
+  - [x] [Distributed training](./distributed/)
 
 ## Usage
 
