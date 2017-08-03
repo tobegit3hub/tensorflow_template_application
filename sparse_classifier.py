@@ -110,12 +110,13 @@ def main():
       num_threads=BATCH_THREAD_NUMBER,
       capacity=BATCH_CAPACITY,
       min_after_dequeue=MIN_AFTER_DEQUEUE)
-  features = tf.parse_example(batch_serialized_example,
-                              features={
-                                  "label": tf.FixedLenFeature([], tf.float32),
-                                  "ids": tf.VarLenFeature(tf.int64),
-                                  "values": tf.VarLenFeature(tf.float32),
-                              })
+  features = tf.parse_example(
+      batch_serialized_example,
+      features={
+          "label": tf.FixedLenFeature([], tf.float32),
+          "ids": tf.VarLenFeature(tf.int64),
+          "values": tf.VarLenFeature(tf.float32),
+      })
   batch_labels = features["label"]
   batch_ids = features["ids"]
   batch_values = features["values"]
@@ -149,22 +150,18 @@ def main():
 
   def full_connect(inputs, weights_shape, biases_shape, is_train=True):
     with tf.device("/cpu:0"):
-      weights = tf.get_variable("weights",
-                                weights_shape,
-                                initializer=tf.random_normal_initializer())
-      biases = tf.get_variable("biases",
-                               biases_shape,
-                               initializer=tf.random_normal_initializer())
+      weights = tf.get_variable(
+          "weights", weights_shape, initializer=tf.random_normal_initializer())
+      biases = tf.get_variable(
+          "biases", biases_shape, initializer=tf.random_normal_initializer())
       layer = tf.matmul(inputs, weights) + biases
 
       if FLAGS.enable_bn and is_train:
         mean, var = tf.nn.moments(layer, axes=[0])
-        scale = tf.get_variable("scale",
-                                biases_shape,
-                                initializer=tf.random_normal_initializer())
-        shift = tf.get_variable("shift",
-                                biases_shape,
-                                initializer=tf.random_normal_initializer())
+        scale = tf.get_variable(
+            "scale", biases_shape, initializer=tf.random_normal_initializer())
+        shift = tf.get_variable(
+            "shift", biases_shape, initializer=tf.random_normal_initializer())
         layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
                                           FLAGS.bn_epsilon)
     return layer
@@ -174,19 +171,16 @@ def main():
                           weights_shape,
                           biases_shape,
                           is_train=True):
-    weights = tf.get_variable("weights",
-                              weights_shape,
-                              initializer=tf.random_normal_initializer())
-    biases = tf.get_variable("biases",
-                             biases_shape,
-                             initializer=tf.random_normal_initializer())
+    weights = tf.get_variable(
+        "weights", weights_shape, initializer=tf.random_normal_initializer())
+    biases = tf.get_variable(
+        "biases", biases_shape, initializer=tf.random_normal_initializer())
     return tf.nn.embedding_lookup_sparse(
-        weights, sparse_ids, sparse_values,
-        combiner="sum") + biases
+        weights, sparse_ids, sparse_values, combiner="sum") + biases
 
   def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
-    return tf.nn.relu(full_connect(inputs, weights_shape, biases_shape,
-                                   is_train))
+    return tf.nn.relu(
+        full_connect(inputs, weights_shape, biases_shape, is_train))
 
   def customized_inference(sparse_ids, sparse_values, is_train=True):
     hidden1_units = 128
@@ -213,10 +207,9 @@ def main():
 
   def dnn_inference(sparse_ids, sparse_values, is_train=True):
     with tf.variable_scope("input"):
-      sparse_layer = sparse_full_connect(
-          sparse_ids, sparse_values,
-          [input_units, model_network_hidden_units[0]],
-          [model_network_hidden_units[0]], is_train)
+      sparse_layer = sparse_full_connect(sparse_ids, sparse_values, [
+          input_units, model_network_hidden_units[0]
+      ], [model_network_hidden_units[0]], is_train)
       layer = tf.nn.relu(sparse_layer)
 
     for i in range(len(model_network_hidden_units) - 1):
@@ -227,8 +220,8 @@ def main():
 
     with tf.variable_scope("output"):
       layer = full_connect(layer,
-                           [model_network_hidden_units[-1], output_units],
-                           [output_units], is_train)
+                           [model_network_hidden_units[-1],
+                            output_units], [output_units], is_train)
     return layer
 
   def lr_inference(sparse_ids, sparse_values, is_train=True):
@@ -263,14 +256,15 @@ def main():
   loss = tf.reduce_mean(cross_entropy, name="loss")
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
-    logging.info("Enable learning rate decay rate: {}".format(
-        FLAGS.lr_decay_rate))
+    logging.info(
+        "Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
     starter_learning_rate = FLAGS.learning_rate
-    learning_rate = tf.train.exponential_decay(starter_learning_rate,
-                                               global_step,
-                                               100000,
-                                               FLAGS.lr_decay_rate,
-                                               staircase=True)
+    learning_rate = tf.train.exponential_decay(
+        starter_learning_rate,
+        global_step,
+        100000,
+        FLAGS.lr_decay_rate,
+        staircase=True)
   else:
     learning_rate = FLAGS.learning_rate
   optimizer = get_optimizer(FLAGS.optimizer, learning_rate)
@@ -282,8 +276,8 @@ def main():
   train_softmax = tf.nn.softmax(train_accuracy_logits)
   train_correct_prediction = tf.equal(
       tf.argmax(train_softmax, 1), batch_labels)
-  train_accuracy = tf.reduce_mean(tf.cast(train_correct_prediction,
-                                          tf.float32))
+  train_accuracy = tf.reduce_mean(
+      tf.cast(train_correct_prediction, tf.float32))
 
   # Define auc op for train data
   batch_labels = tf.cast(batch_labels, tf.int32)
@@ -303,8 +297,8 @@ def main():
   validate_batch_labels = tf.to_int64(validate_batch_labels)
   validate_correct_prediction = tf.equal(
       tf.argmax(validate_softmax, 1), validate_batch_labels)
-  validate_accuracy = tf.reduce_mean(tf.cast(validate_correct_prediction,
-                                             tf.float32))
+  validate_accuracy = tf.reduce_mean(
+      tf.cast(validate_correct_prediction, tf.float32))
 
   # Define auc op for validate data
   validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
@@ -330,14 +324,20 @@ def main():
   keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
   keys = tf.identity(keys_placeholder)
   model_signature = {
-      "inputs": exporter.generic_signature({"keys": keys_placeholder,
-                                            "indexs": sparse_index,
-                                            "ids": sparse_ids,
-                                            "values": sparse_values,
-                                            "shape": sparse_shape}),
-      "outputs": exporter.generic_signature({"keys": keys,
-                                             "softmax": inference_softmax,
-                                             "prediction": inference_op})
+      "inputs":
+      exporter.generic_signature({
+          "keys": keys_placeholder,
+          "indexs": sparse_index,
+          "ids": sparse_ids,
+          "values": sparse_values,
+          "shape": sparse_shape
+      }),
+      "outputs":
+      exporter.generic_signature({
+          "keys": keys,
+          "softmax": inference_softmax,
+          "prediction": inference_op
+      })
   }
 
   # Initialize saver and summary
@@ -348,8 +348,10 @@ def main():
   tf.summary.scalar("validate_accuracy", validate_accuracy)
   tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
-  init_op = [tf.global_variables_initializer(), tf.local_variables_initializer(
-  )]
+  init_op = [
+      tf.global_variables_initializer(),
+      tf.local_variables_initializer()
+  ]
 
   # Create session to run
   with tf.Session() as sess:
@@ -371,14 +373,16 @@ def main():
           # Print state while training
           if step % FLAGS.steps_to_validate == 0:
             train_accuracy_value, train_auc_value, validate_accuracy_value, auc_value, summary_value = sess.run(
-                [train_accuracy, train_auc, validate_accuracy, validate_auc,
-                 summary_op])
+                [
+                    train_accuracy, train_auc, validate_accuracy, validate_auc,
+                    summary_op
+                ])
             end_time = datetime.datetime.now()
             logging.info(
-                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".format(
-                    end_time - start_time, step, loss_value,
-                    train_accuracy_value, train_auc_value,
-                    validate_accuracy_value, auc_value))
+                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
+                format(end_time - start_time, step, loss_value,
+                       train_accuracy_value, train_auc_value,
+                       validate_accuracy_value, auc_value))
             writer.add_summary(summary_value, step)
             saver.save(sess, CHECKPOINT_FILE, global_step=step)
             start_time = end_time
@@ -404,8 +408,8 @@ def main():
         logging.error("No checkpoint found, exit now")
         exit(1)
 
-      logging.info("Export the saved model to {}".format(
-          FLAGS.saved_model_path))
+      logging.info(
+          "Export the saved model to {}".format(FLAGS.saved_model_path))
       export_path_base = FLAGS.saved_model_path
       export_path = os.path.join(
           compat.as_bytes(export_path_base),
@@ -437,8 +441,8 @@ def main():
                 model_signature,
             },
             #legacy_init_op=legacy_init_op)
-            legacy_init_op=tf.group(tf.initialize_all_tables(),
-                                    name="legacy_init_op"))
+            legacy_init_op=tf.group(
+                tf.initialize_all_tables(), name="legacy_init_op"))
 
         builder.save()
       except Exception as e:
@@ -473,10 +477,12 @@ def main():
       start_time = datetime.datetime.now()
       prediction, prediction_softmax = sess.run(
           [inference_op, inference_softmax],
-          feed_dict={sparse_index: feature_index,
-                     sparse_ids: feature_ids,
-                     sparse_values: feature_values,
-                     sparse_shape: [ins_num, FEATURE_SIZE]})
+          feed_dict={
+              sparse_index: feature_index,
+              sparse_ids: feature_ids,
+              sparse_values: feature_values,
+              sparse_shape: [ins_num, FEATURE_SIZE]
+          })
 
       end_time = datetime.datetime.now()
 
@@ -491,88 +497,90 @@ def main():
       # Compute auc
       expected_labels = np.array(labels)
       predict_labels = prediction_softmax[:, 0]
-      fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
-                                               predict_labels,
-                                               pos_label=0)
+      fpr, tpr, thresholds = metrics.roc_curve(
+          expected_labels, predict_labels, pos_label=0)
       auc = metrics.auc(fpr, tpr)
       logging.info("[{}] Inference accuracy: {}, auc: {}".format(
           end_time - start_time, accuracy, auc))
 
       # Save result into the file
       np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
-      logging.info("Save result to file: {}".format(
-          inference_result_file_name))
+      logging.info(
+          "Save result to file: {}".format(inference_result_file_name))
 
     elif MODE == "inference_with_tfrecords":
-        if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
-            logging.error("No checkpoint found, exit now")
-            exit(1)
+      if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
+        logging.error("No checkpoint found, exit now")
+        exit(1)
 
-        # Load inference test data
-        inference_result_file_name = "./inference_result.txt"
-        inference_test_file_name = "./data/a8a/a8a_test.libsvm.tfrecords"
-        #inference_test_file_name = "hdfs://namenode:8020/user/tobe/deep_recommend_system/data/a8a/a8a_test.libsvm.tfrecords"
+      # Load inference test data
+      inference_result_file_name = "./inference_result.txt"
+      inference_test_file_name = "./data/a8a/a8a_test.libsvm.tfrecords"
+      #inference_test_file_name = "hdfs://namenode:8020/user/tobe/deep_recommend_system/data/a8a/a8a_test.libsvm.tfrecords"
 
-        # Read from TFRecords files
-        for serialized_example in tf.python_io.tf_record_iterator(inference_test_file_name):
-          # Get serialized example from file
-          example = tf.train.Example()
-          example.ParseFromString(serialized_example)
-          label = example.features.feature["label"].float_list.value
-          ids = example.features.feature["ids"].int64_list.value
-          values = example.features.feature["values"].float_list.value
-          print("label: {}, features: {}".format(label, " ".join([str(id) + ":" + str(value) for id, value in zip(ids, values)])))
+      # batch_labels = features["label"]
+      # batch_ids = features["ids"]
+      # batch_values = features["values"]
+      batch_feature_index = []
+      batch_labels = []
+      batch_ids = []
+      batch_values = []
+      ins_num = 0
 
-        labels = []
-        feature_ids = []
-        feature_values = []
-        feature_index = []
-        ins_num = 0
-        for line in open(inference_test_file_name, "r"):
-            tokens = line.split(" ")
-            labels.append(int(tokens[0]))
-            feature_num = 0
-            for feature in tokens[1:]:
-                feature_id, feature_value = feature.split(":")
-                feature_ids.append(int(feature_id))
-                feature_values.append(float(feature_value))
-                feature_index.append([ins_num, feature_num])
-                feature_num += 1
-            ins_num += 1
+      # Read from TFRecords files
+      for serialized_example in tf.python_io.tf_record_iterator(
+          inference_test_file_name):
+        # Get serialized example from file
+        example = tf.train.Example()
+        example.ParseFromString(serialized_example)
+        label = example.features.feature["label"].float_list.value
+        ids = example.features.feature["ids"].int64_list.value
+        values = example.features.feature["values"].float_list.value
+        #print("label: {}, features: {}".format(label, " ".join([str(id) + ":" + str(value) for id, value in zip(ids, values)])))
+        batch_labels.append(label)
+        # Notice that using extend() instead of append() to flatten the values
+        batch_ids.extend(ids)
+        batch_values.extend(values)
+        for i in xrange(len(ids)):
+          batch_feature_index.append([ins_num, i])
 
-        # Run inference
-        start_time = datetime.datetime.now()
-        prediction, prediction_softmax = sess.run(
-            [inference_op, inference_softmax],
-            feed_dict={sparse_index: feature_index,
-                       sparse_ids: feature_ids,
-                       sparse_values: feature_values,
-                       sparse_shape: [ins_num, FEATURE_SIZE]})
+        ins_num += 1
 
-        end_time = datetime.datetime.now()
+      # Run inference
+      start_time = datetime.datetime.now()
+      prediction, prediction_softmax = sess.run(
+          [inference_op, inference_softmax],
+          feed_dict={
+              sparse_index: batch_feature_index,
+              sparse_ids: batch_ids,
+              sparse_values: batch_values,
+              sparse_shape: [ins_num, FEATURE_SIZE]
+          })
 
-        # Compute accuracy
-        label_number = len(labels)
-        correct_label_number = 0
-        for i in range(label_number):
-            if labels[i] == prediction[i]:
-                correct_label_number += 1
-        accuracy = float(correct_label_number) / label_number
+      end_time = datetime.datetime.now()
 
-        # Compute auc
-        expected_labels = np.array(labels)
-        predict_labels = prediction_softmax[:, 0]
-        fpr, tpr, thresholds = metrics.roc_curve(expected_labels,
-                                                 predict_labels,
-                                                 pos_label=0)
-        auc = metrics.auc(fpr, tpr)
-        logging.info("[{}] Inference accuracy: {}, auc: {}".format(
-            end_time - start_time, accuracy, auc))
+      # Compute accuracy
+      label_number = len(batch_labels)
+      correct_label_number = 0
+      for i in range(label_number):
+        if batch_labels[i] == prediction[i]:
+          correct_label_number += 1
+      accuracy = float(correct_label_number) / label_number
 
-        # Save result into the file
-        np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
-        logging.info("Save result to file: {}".format(
-            inference_result_file_name))
+      # Compute auc
+      expected_labels = np.array(batch_labels)
+      predict_labels = prediction_softmax[:, 0]
+      fpr, tpr, thresholds = metrics.roc_curve(
+          expected_labels, predict_labels, pos_label=0)
+      auc = metrics.auc(fpr, tpr)
+      logging.info("[{}] Inference accuracy: {}, auc: {}".format(
+          end_time - start_time, accuracy, auc))
+
+      # Save result into the file
+      np.savetxt(inference_result_file_name, prediction_softmax, delimiter=",")
+      logging.info(
+          "Save result to file: {}".format(inference_result_file_name))
+
 
 def get_optimizer(optimizer, learning_rate):
   logging.info("Use the optimizer: {}".format(optimizer))
@@ -605,9 +613,10 @@ def restore_session_from_checkpoint(sess, saver, checkpoint):
 def export_model(sess, saver, signature, model_path, model_version):
   logging.info("Export the model to {}".format(model_path))
   model_exporter = exporter.Exporter(saver)
-  model_exporter.init(sess.graph.as_graph_def(),
-                      named_graph_signatures=signature,
-                      clear_devices=True)
+  model_exporter.init(
+      sess.graph.as_graph_def(),
+      named_graph_signatures=signature,
+      clear_devices=True)
   try:
     model_exporter.export(model_path, tf.constant(model_version), sess)
   except Exception as e:
