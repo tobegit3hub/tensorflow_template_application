@@ -370,15 +370,13 @@ def main():
 
       try:
         while not coord.should_stop():
-          _, loss_value, step = sess.run([train_op, loss, global_step])
-
-          # Print state while training
-          if step % FLAGS.steps_to_validate == 0:
+          if FLAGS.benchmark_mode:
+            sess.run(train_op)
+          else:
             _, step = sess.run([train_op, global_step])
 
-            if FLAGS.benchmark_mode:
-              logging.info("The step: {}".format(step))
-            else:
+            # Print state while training
+            if step % FLAGS.steps_to_validate == 0:
               loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, auc_value, summary_value = sess.run(
                   [
                       loss, train_accuracy, train_auc, validate_accuracy,
@@ -396,7 +394,8 @@ def main():
               start_time = end_time
       except tf.errors.OutOfRangeError:
         if FLAGS.benchmark_mode:
-          print("Finish training")
+          print("Finish training for benchmark")
+          exit(0)
         else:
           # Export the model after training
           export_model(sess, saver, model_signature, FLAGS.model_path,
