@@ -63,6 +63,8 @@ flags.DEFINE_string("inference_test_file", "./data/cancer_test.csv",
                     "The test file for inference")
 flags.DEFINE_string("inference_result_file", "./inference_result.txt",
                     "The result file from inference")
+flags.DEFINE_boolean("benchmark_mode", False,
+                     "Reduce extra computation in benchmark mode")
 
 
 def main():
@@ -418,28 +420,35 @@ def main():
 
       try:
         while not coord.should_stop():
-          _, loss_value, step = sess.run([train_op, loss, global_step])
+          if FLAGS.benchmark_mode:
+            sess.run(train_op)
+          else:
+            _, step = sess.run([train_op, global_step])
 
-          # Print state while training
-          if step % FLAGS.steps_to_validate == 0:
-            train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
-                [
-                    train_accuracy, train_auc, validate_accuracy, validate_auc,
-                    summary_op
-                ])
-            end_time = datetime.datetime.now()
-            logging.info(
-                "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
-                format(end_time - start_time, step, loss_value,
-                       train_accuracy_value, train_auc_value,
-                       validate_accuracy_value, validate_auc_value))
-            writer.add_summary(summary_value, step)
-            saver.save(sess, CHECKPOINT_FILE, global_step=step)
-            start_time = end_time
+            # Print state while training
+            if step % FLAGS.steps_to_validate == 0:
+              loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
+                  [
+                      loss, train_accuracy, train_auc, validate_accuracy,
+                      validate_auc, summary_op
+                  ])
+              end_time = datetime.datetime.now()
+              logging.info(
+                  "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
+                  format(end_time - start_time, step, loss_value,
+                         train_accuracy_value, train_auc_value,
+                         validate_accuracy_value, validate_auc_value))
+              writer.add_summary(summary_value, step)
+              saver.save(sess, CHECKPOINT_FILE, global_step=step)
+              start_time = end_time
       except tf.errors.OutOfRangeError:
-        # Export the model after training
-        export_model(sess, saver, model_signature, FLAGS.model_path,
-                     FLAGS.model_version)
+        if FLAGS.benchmark_mode:
+          print("Finish training for benchmark")
+          exit(0)
+        else:
+          # Export the model after training
+          export_model(sess, saver, model_signature, FLAGS.model_path,
+                       FLAGS.model_version)
       finally:
         coord.request_stop()
       coord.join(threads)
