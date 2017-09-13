@@ -42,6 +42,8 @@ flags.DEFINE_string("checkpoint_path", "./checkpoint/",
                     "The path of checkpoint")
 flags.DEFINE_string("output_path", "./tensorboard/",
                     "The path of tensorboard event files")
+flags.DEFINE_string("scenario", "classification",
+                    "Support classification and regression")
 flags.DEFINE_string("model", "dnn", "Support dnn, lr, wide_and_deep")
 flags.DEFINE_string("model_network", "128 32 8", "The neural network of model")
 flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization or not")
@@ -86,6 +88,7 @@ def main():
   MIN_AFTER_DEQUEUE = FLAGS.min_after_dequeue
   BATCH_CAPACITY = BATCH_THREAD_NUMBER * FLAGS.batch_size + MIN_AFTER_DEQUEUE
   MODE = FLAGS.mode
+  SCENARIO = FLAGS.scenario
   MODEL = FLAGS.model
   CHECKPOINT_PATH = FLAGS.checkpoint_path
   if not CHECKPOINT_PATH.startswith("fds://") and not os.path.exists(
@@ -311,10 +314,19 @@ def main():
   logging.info("Use the model: {}, model network: {}".format(
       MODEL, FLAGS.model_network))
   logits = inference(batch_features, True)
-  batch_labels = tf.to_int64(batch_labels)
-  cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-      logits=logits, labels=batch_labels)
-  loss = tf.reduce_mean(cross_entropy, name="loss")
+
+  if SCENARIO == "classification":
+    batch_labels = tf.to_int64(batch_labels)
+    cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
+        logits=logits, labels=batch_labels)
+    loss = tf.reduce_mean(cross_entropy, name="loss")
+  elif SCENARIO == "regression":
+    msl = tf.square(logits - batch_labels, name="msl")
+    loss = tf.reduce_mean(msl, name="loss")
+  else:
+    logging.error("Unknow scenario: {}".format(SCENARIO))
+    return
+
   global_step = tf.Variable(0, name="global_step", trainable=False)
   if FLAGS.enable_lr_decay:
     logging.info(
@@ -331,6 +343,10 @@ def main():
   optimizer = get_optimizer(FLAGS.optimizer, learning_rate)
   train_op = optimizer.minimize(loss, global_step=global_step)
   tf.get_variable_scope().reuse_variables()
+
+  # Avoid error when not using acc and auc op
+  if SCENARIO == "regression":
+    batch_labels = tf.to_int64(batch_labels)
 
   # Define accuracy op for train data
   train_accuracy_logits = inference(batch_features, False)
@@ -395,10 +411,11 @@ def main():
   # Initialize saver and summary
   saver = tf.train.Saver()
   tf.summary.scalar("loss", loss)
-  tf.summary.scalar("train_accuracy", train_accuracy)
-  tf.summary.scalar("train_auc", train_auc)
-  tf.summary.scalar("validate_accuracy", validate_accuracy)
-  tf.summary.scalar("validate_auc", validate_auc)
+  if SCENARIO == "classification":
+    tf.summary.scalar("train_accuracy", train_accuracy)
+    tf.summary.scalar("train_auc", train_auc)
+    tf.summary.scalar("validate_accuracy", validate_accuracy)
+    tf.summary.scalar("validate_auc", validate_auc)
   summary_op = tf.summary.merge_all()
   init_op = [
       tf.global_variables_initializer(),
@@ -427,17 +444,24 @@ def main():
 
             # Print state while training
             if step % FLAGS.steps_to_validate == 0:
-              loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
-                  [
-                      loss, train_accuracy, train_auc, validate_accuracy,
-                      validate_auc, summary_op
-                  ])
-              end_time = datetime.datetime.now()
-              logging.info(
-                  "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
-                  format(end_time - start_time, step, loss_value,
-                         train_accuracy_value, train_auc_value,
-                         validate_accuracy_value, validate_auc_value))
+              if SCENARIO == "classification":
+                loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
+                    [
+                        loss, train_accuracy, train_auc, validate_accuracy,
+                        validate_auc, summary_op
+                    ])
+                end_time = datetime.datetime.now()
+                logging.info(
+                    "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
+                    format(end_time - start_time, step, loss_value,
+                           train_accuracy_value, train_auc_value,
+                           validate_accuracy_value, validate_auc_value))
+              elif SCENARIO == "regression":
+                loss_value, summary_value = sess.run([loss, summary_op])
+                end_time = datetime.datetime.now()
+                logging.info("[{}] Step: {}, loss: {}".format(
+                    end_time - start_time, step, loss_value))
+
               writer.add_summary(summary_value, step)
               saver.save(sess, CHECKPOINT_FILE, global_step=step)
               start_time = end_time

@@ -11,7 +11,7 @@ def generate_tfrecords(input_filename, output_filename):
   index = 0
   for line in open(input_filename, "r"):
     index += 1
-    
+
     # Ignore the first line
     if index == 1:
       continue
@@ -20,17 +20,18 @@ def generate_tfrecords(input_filename, output_filename):
     label = float(data[14])
     features = [float(i) for i in data[1:14]]
 
-    example = tf.train.Example(features=tf.train.Features(feature={
-        "label":
-        tf.train.Feature(float_list=tf.train.FloatList(value=[label])),
-        "features":
-        tf.train.Feature(float_list=tf.train.FloatList(value=features)),
-    }))
+    example = tf.train.Example(features=tf.train.Features(
+        feature={
+            "label":
+            tf.train.Feature(float_list=tf.train.FloatList(value=[label])),
+            "features":
+            tf.train.Feature(float_list=tf.train.FloatList(value=features)),
+        }))
     writer.write(example.SerializeToString())
 
   writer.close()
-  print("Successfully convert {} to {}".format(input_filename,
-                                               output_filename))
+  print(
+      "Successfully convert {} to {}".format(input_filename, output_filename))
 
 
 def main():

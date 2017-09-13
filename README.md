@@ -26,11 +26,12 @@ Following are the supported features.
   - [x] Validate acc/auc
   - [x] Inference online
   - [x] Inference offline
-- [x] Network Model
+- [x] Network Models
   - [x] Logistic regression
   - [x] Deep neural network
   - [x] Convolution neural network
   - [x] Wide and deep model
+  - [x] Regression model
   - [x] Customized models
 - [x] Others
   - [x] Checkpoint
@@ -93,6 +94,12 @@ If you want to use CNN model, try this command.
 
 ```
 ./dense_classifier.py --train_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --validate_file ./data/lung/fa7a21165ae152b13def786e6afc3edf.dcm.csv.tfrecords --feature_size 262144 --label_size 2 --batch_size 2 --validate_batch_size 2 --epoch_number -1 --model cnn
+```
+
+For [boston housing](./data/boston_housing/) dataset.
+
+```
+./dense_classifier.py --train_file ./data/boston_housing/train.csv.tfrecords --validate_file ./data/boston_housing/train.csv.tfrecords --feature_size 13 --label_size 1 --scenario regression  --batch_size 1 --validate_batch_size 1
 ```
 
 ### Export The Model
