@@ -11,7 +11,7 @@ Run HTTP server with [Django] and use HTTP client with curl, postman or [bat](ht
 ./manage.py runserver 0.0.0.0:8000
 ```
 
-### Inference to predict cancel
+### Inference to predict cancer
 
 ```
 bat post http://127.0.0.1:8000/cancer_predict/predict/ cancer_features="10,10,10,8,6,1,8,9,1;6,2,1,1,1,1,7,1,1"
