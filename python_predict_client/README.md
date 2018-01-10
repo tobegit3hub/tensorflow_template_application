@@ -7,7 +7,7 @@ TensorFlow serving is the gRPC service for general TensorFlow models. We can imp
 ## Usage
 
 ```
-./predict_client.py --host 127.0.0.1 --port 9000 --model_name cancer --model_version 1
+./predict_client.py --host 127.0.0.1 --port 8500 --model_name default --model_version 1
 ```
 
 For sparse data, you can run with this command.
