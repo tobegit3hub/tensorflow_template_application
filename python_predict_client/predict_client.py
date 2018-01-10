@@ -3,21 +3,20 @@
 import numpy
 import tensorflow as tf
 from grpc.beta import implementations
-from tensorflow_serving.apis import predict_pb2
-from tensorflow_serving.apis import prediction_service_pb2
+from tensorflow_serving.apis import predict_pb2, prediction_service_pb2
 
-tf.app.flags.DEFINE_string("host", "127.0.0.1", "gRPC server host")
-tf.app.flags.DEFINE_integer("port", 9000, "gRPC server port")
-tf.app.flags.DEFINE_string("model_name", "default", "TensorFlow model name")
-tf.app.flags.DEFINE_integer("model_version", -1, "TensorFlow model version")
-tf.app.flags.DEFINE_string("signature_name", "", "The signature name")
+tf.app.flags.DEFINE_string("host", "0.0.0.0", "TensorFlow Serving server ip")
+tf.app.flags.DEFINE_integer("port", 8500, "TensorFlow Serving server port")
+tf.app.flags.DEFINE_string("model_name", "default", "The model name")
+tf.app.flags.DEFINE_integer("model_version", -1, "The model version")
+tf.app.flags.DEFINE_string("signature_name", "", "The model signature name")
 tf.app.flags.DEFINE_float("request_timeout", 10.0, "Timeout of gRPC request")
 FLAGS = tf.app.flags.FLAGS
 
 
 def main():
   # Generate inference data
-  keys = numpy.asarray([1, 2, 3])
+  keys = numpy.asarray([1, 2, 3, 4])
   keys_tensor_proto = tf.contrib.util.make_tensor_proto(keys, dtype=tf.int32)
   features = numpy.asarray(
       [[1, 2, 3, 4, 5, 6, 7, 8, 9], [1, 1, 1, 1, 1, 1, 1, 1, 1],
