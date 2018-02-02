@@ -5,17 +5,16 @@ import datetime
 import json
 import logging
 import math
-import numpy as np
 import os
 import pprint
-from sklearn import metrics
+
+import numpy as np
 import tensorflow as tf
+from sklearn import metrics
 from tensorflow.contrib.session_bundle import exporter
 from tensorflow.python.saved_model import builder as saved_model_builder
-from tensorflow.python.saved_model import signature_constants
-from tensorflow.python.saved_model import signature_def_utils
-from tensorflow.python.saved_model import tag_constants
-from tensorflow.python.saved_model import utils
+from tensorflow.python.saved_model import (
+    signature_constants, signature_def_utils, tag_constants, utils)
 from tensorflow.python.util import compat
 
 # Define hyperparameters
@@ -417,6 +416,14 @@ def main():
       if not restore_session_from_checkpoint(sess, saver, LATEST_CHECKPOINT):
         logging.error("No checkpoint found, exit now")
         exit(1)
+
+      graph_file_name = "graph.pb"
+      logging.info("Export the graph to: {}".format(FLAGS.saved_model_path))
+      tf.train.write_graph(
+          sess.graph_def,
+          FLAGS.saved_model_path,
+          graph_file_name,
+          as_text=False)
 
       logging.info(
           "Export the saved model to {}".format(FLAGS.saved_model_path))
