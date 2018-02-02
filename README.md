@@ -12,14 +12,14 @@ Following are the supported features.
   - [x] [TensorFlow serving](./cpp_predict_server/)
   - [x] [Python gRPC server](./python_predict_server/)
   - [x] [Python HTTP server](./http_service/)
-- [ ] Predict Client
+- [x] Predict Client
   - [x] [Python gPRC client](./python_predict_client/)
   - [x] [Java gPRC client](./java_predict_client/)
   - [x] [Scala gPRC client](./java_predict_client/)
   - [x] [Golang gRPC client](./golang_predict_client/)
   - [x] [C++ gRPC client](./cpp_predict_client/)
   - [x] [Spark client](./java_predict_client/)
-  - [ ] Android client
+  - [x] [Android client](./android_client/)
 - [x] Use Cases
   - [x] Train model
   - [x] Export model
