@@ -20,6 +20,7 @@ Following are the supported features.
   - [x] [C++ gRPC client](./cpp_predict_client/)
   - [x] [Spark client](./java_predict_client/)
   - [x] [Android client](./android_client/)
+  - [x] [iOS client](./ios_client/)
 - [x] Use Cases
   - [x] Train model
   - [x] Export model
