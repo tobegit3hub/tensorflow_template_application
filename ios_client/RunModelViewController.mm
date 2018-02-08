@@ -185,6 +185,10 @@ NSString* RunInferenceOnImage() {
   //  string_tensor_list.push({keys_input, keys_tensor});
   //  string_tensor_list.push({features_input, features_data});
     
+    
+    
+    
+    
   tensorflow::Status run_status = session->Run({{keys_input, keys_tensor}}, {output_keys}, {}, &output_tensors);
   //  tensorflow::Status run_status = session->Run({{features_input, features_tensor}}, {output_softmax}, {}, &output_tensors);
     
