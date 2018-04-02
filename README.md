@@ -108,7 +108,7 @@ For [boston housing](./data/boston_housing/) dataset.
 After training, it will export the model automatically. Or you can export manually.
 
 ```
-./dense_classifier.py --mode export
+./dense_classifier.py --mode savedmodel
 ```
 
 ### Validate The Model
