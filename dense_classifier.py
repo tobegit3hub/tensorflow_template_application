@@ -1,14 +1,11 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import datetime
 import logging
 import os
-import sys
 import pprint
 import numpy as np
 import tensorflow as tf
@@ -16,14 +13,23 @@ from sklearn import metrics
 from tensorflow.python.saved_model import builder as saved_model_builder
 from tensorflow.python.saved_model import (
     signature_constants, signature_def_utils, tag_constants, utils)
-from tensorflow.python.util import compat
+
+import model
 
 
 def define_flags():
+  """
+  Define all the command-line parameters.
+  
+  Return:
+    The FLAGS object.
+  """
+
   flags = tf.app.flags
-  flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
   flags.DEFINE_string("mode", "train", "Support train, inference, savedmodel")
   flags.DEFINE_boolean("enable_benchmark", False, "Enable benchmark")
+  flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
+  flags.DEFINE_boolean("resume_from_checkpoint", True, "Resume or not")
   flags.DEFINE_string("scenario", "classification",
                       "Support classification, regression")
   flags.DEFINE_integer("feature_size", 9, "Number of feature size")
@@ -45,7 +51,7 @@ def define_flags():
   flags.DEFINE_string("model", "dnn",
                       "Support dnn, lr, wide_and_deep, customized, cnn")
   flags.DEFINE_string("dnn_struct", "128 32 8", "DNN struct")
-  flags.DEFINE_integer("epoch_number", 1000, "Number of epoches")
+  flags.DEFINE_integer("epoch_number", 100, "Number of epoches")
   flags.DEFINE_integer("batch_size", 1024, "Batch size")
   flags.DEFINE_integer("validate_batch_size", 1024,
                        "Batch size for validation")
@@ -65,6 +71,15 @@ def define_flags():
   flags.DEFINE_integer("model_version", 1, "Version of the model")
   FLAGS = flags.FLAGS
 
+  # Check parameters
+  assert (FLAGS.mode in ["train", "inference", "savedmodel"])
+  assert (FLAGS.scenario in ["classification", "regression"])
+  assert (FLAGS.train_file_format in ["tfrecords", "csv"])
+  assert (FLAGS.optimizer in [
+      "sgd", "adadelta", "adagrad", "adam", "ftrl", "rmsprop"
+  ])
+  assert (FLAGS.model in ["dnn", "lr", "wide_and_deep", "customized", "cnn"])
+
   # Print flags
   parameter_value_map = {}
   for key in FLAGS.__flags.keys():
@@ -74,23 +89,18 @@ def define_flags():
   return FLAGS
 
 
-def assert_flags(FLAGS):
-  if FLAGS.mode in ["train", "inference", "savedmodel"]:
-    if FLAGS.scenario in ["classification", "regression"]:
-      if FLAGS.train_file_format in ["tfrecords", "csv"]:
-        if FLAGS.optimizer in [
-            "sgd", "adadelta", "adagrad", "adam", "ftrl", "rmsprop"
-        ]:
-          if FLAGS.model in [
-              "dnn", "lr", "wide_and_deep", "customized", "cnn"
-          ]:
-            return
-
-  logging.error("Get the unsupported parameters, exit now")
-  sys.exit(1)
-
-
 def get_optimizer_by_name(optimizer_name, learning_rate):
+  """
+  Get optimizer object by the string.
+  
+  Args:
+    optimizer_name: Name of the optimizer. 
+    learning_rate: The learning rate.
+  
+  Return:
+    The optimizer object.
+  """
+
   logging.info("Use the optimizer: {}".format(optimizer_name))
   if optimizer_name == "sgd":
     optimizer = tf.train.GradientDescentOptimizer(learning_rate)
@@ -109,16 +119,98 @@ def get_optimizer_by_name(optimizer_name, learning_rate):
   return optimizer
 
 
-def restore_from_checkpoint(sess, saver, checkpoint):
-  if checkpoint:
-    logging.info("Restore session from checkpoint: {}".format(checkpoint))
-    saver.restore(sess, checkpoint)
+def save_model(model_path,
+               model_version,
+               sess,
+               model_signature,
+               is_save_graph=False):
+  """
+  Save the model in standard SavedModel format.
+  
+  Args:
+    model_path: The path to model.
+    model_version: The version of model.
+    sess: The TensorFlow Session object.
+    model_signature: The TensorFlow SignatureDef object.
+    is_save_graph: Should save graph file of not.
+  
+  Return:
+    None
+  """
+
+  export_path = os.path.join(model_path, str(model_version))
+
+  if os.path.isdir(export_path) == True:
+    logging.error("The model exists in path: {}".format(export_path))
+    return
+
+  try:
+    # Save the SavedModel
+    legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
+    builder = saved_model_builder.SavedModelBuilder(export_path)
+    builder.add_meta_graph_and_variables(
+        sess, [tag_constants.SERVING],
+        clear_devices=True,
+        signature_def_map={
+            signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+            model_signature,
+        },
+        legacy_init_op=legacy_init_op)
+    logging.info("Save the model in: {}".format(export_path))
+    builder.save()
+
+    # Save the GraphDef
+    if is_save_graph == True:
+      graph_file_name = "graph.pb"
+      logging.info("Save the graph file in: {}".format(model_path))
+      tf.train.write_graph(
+          sess.graph_def, model_path, graph_file_name, as_text=False)
+
+  except Exception as e:
+    logging.error("Fail to export saved model, exception: {}".format(e))
+
+
+def restore_from_checkpoint(sess, saver, checkpoint_file_path):
+  """
+  Restore session from checkpoint files.
+  
+  Args:
+    sess: TensorFlow Session object.
+    saver: TensorFlow Saver object.
+    checkpoint_file_path: The checkpoint file path.
+  
+  Return:
+    True if restore successfully and False if fail
+  """
+  if checkpoint_file_path:
+    logging.info(
+        "Restore session from checkpoint: {}".format(checkpoint_file_path))
+    saver.restore(sess, checkpoint_file_path)
     return True
   else:
-    logging.warn("Checkpoint not found: {}".format(checkpoint))
+    logging.error("Checkpoint not found: {}".format(checkpoint_file_path))
     return False
 
 
+def parse_tfrecords_function(example_proto):
+  """
+  Decode TFRecords for Dataset.
+  
+  Args:
+    example_proto: TensorFlow ExampleProto object. 
+  
+  Return:
+    The op of features and labels
+  """
+  features = {
+      "features": tf.FixedLenFeature([FLAGS.feature_size], tf.float32),
+      "label": tf.FixedLenFeature([], tf.int64, default_value=0)
+  }
+  parsed_features = tf.parse_single_example(example_proto, features)
+  return parsed_features["features"], parsed_features["label"]
+
+
+# TODO: Change for dataset api
 def read_and_decode_csv(filename_queue):
   # Notice that it supports label in the last column only
   reader = tf.TextLineReader()
@@ -130,166 +222,33 @@ def read_and_decode_csv(filename_queue):
   return label, features
 
 
-def full_connect(inputs, weights_shape, biases_shape, is_train=True):
-  weights = tf.get_variable(
-      "weights", weights_shape, initializer=tf.random_normal_initializer())
-  biases = tf.get_variable(
-      "biases", biases_shape, initializer=tf.random_normal_initializer())
-  layer = tf.matmul(inputs, weights) + biases
-
-  if FLAGS.enable_bn and is_train:
-    mean, var = tf.nn.moments(layer, axes=[0])
-    scale = tf.get_variable(
-        "scale", biases_shape, initializer=tf.random_normal_initializer())
-    shift = tf.get_variable(
-        "shift", biases_shape, initializer=tf.random_normal_initializer())
-    layer = tf.nn.batch_normalization(layer, mean, var, shift, scale,
-                                      FLAGS.bn_epsilon)
-  return layer
-
-
-def full_connect_relu(inputs, weights_shape, biases_shape, is_train=True):
-  layer = full_connect(inputs, weights_shape, biases_shape, is_train)
-  layer = tf.nn.relu(layer)
-  return layer
-
-
-def customized_inference(inputs, input_units, output_units, is_train=True):
-  hidden1_units = 128
-  hidden2_units = 32
-  hidden3_units = 8
-
-  with tf.variable_scope("input"):
-    layer = full_connect_relu(inputs, [input_units, hidden1_units],
-                              [hidden1_units], is_train)
-  with tf.variable_scope("layer0"):
-    layer = full_connect_relu(layer, [hidden1_units, hidden2_units],
-                              [hidden2_units], is_train)
-  with tf.variable_scope("layer1"):
-    layer = full_connect_relu(layer, [hidden2_units, hidden3_units],
-                              [hidden3_units], is_train)
-  if FLAGS.enable_dropout and is_train:
-    layer = tf.nn.dropout(layer, FLAGS.dropout_keep_prob)
-  with tf.variable_scope("output"):
-    layer = full_connect(layer, [hidden3_units, output_units], [output_units],
-                         is_train)
-  return layer
-
-
-def dnn_inference(inputs, input_units, output_units, is_train=True):
-  model_network_hidden_units = [int(i) for i in FLAGS.dnn_struct.split()]
-  with tf.variable_scope("input"):
-    layer = full_connect_relu(inputs,
-                              [input_units, model_network_hidden_units[0]],
-                              [model_network_hidden_units[0]], is_train)
-
-  for i in range(len(model_network_hidden_units) - 1):
-    with tf.variable_scope("layer{}".format(i)):
-      layer = full_connect_relu(layer, [
-          model_network_hidden_units[i], model_network_hidden_units[i + 1]
-      ], [model_network_hidden_units[i + 1]], is_train)
-
-  with tf.variable_scope("output"):
-    layer = full_connect(layer, [model_network_hidden_units[-1], output_units],
-                         [output_units], is_train)
-  return layer
-
-
-def lr_inference(inputs, input_units, output_units, is_train=True):
-  with tf.variable_scope("lr"):
-    layer = full_connect(inputs, [input_units, output_units], [output_units])
-  return layer
-
-
-def wide_and_deep_inference(inputs, input_units, output_units, is_train=True):
-  return lr_inference(inputs, input_units,
-                      output_units, is_train) + dnn_inference(
-                          inputs, input_units, output_units, is_train)
-
-
-def cnn_inference(inputs, input_units, output_units, is_train=True):
-  # TODO: Change if validate_batch_size is different
-  # [BATCH_SIZE, 512 * 512 * 1] -> [BATCH_SIZE, 512, 512, 1]
-  inputs = tf.reshape(inputs, [FLAGS.batch_size, 512, 512, 1])
-
-  # [BATCH_SIZE, 512, 512, 1] -> [BATCH_SIZE, 128, 128, 8]
-  with tf.variable_scope("conv0"):
-    weights = tf.get_variable(
-        "weights", [3, 3, 1, 8], initializer=tf.random_normal_initializer())
-    bias = tf.get_variable(
-        "bias", [8], initializer=tf.random_normal_initializer())
-
-    layer = tf.nn.conv2d(inputs, weights, strides=[1, 1, 1, 1], padding="SAME")
-    layer = tf.nn.bias_add(layer, bias)
-    layer = tf.nn.relu(layer)
-    layer = tf.nn.max_pool(
-        layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
-
-  # [BATCH_SIZE, 128, 128, 8] -> [BATCH_SIZE, 32, 32, 8]
-  with tf.variable_scope("conv1"):
-    weights = tf.get_variable(
-        "weights", [3, 3, 8, 8], initializer=tf.random_normal_initializer())
-    bias = tf.get_variable(
-        "bias", [8], initializer=tf.random_normal_initializer())
-
-    layer = tf.nn.conv2d(layer, weights, strides=[1, 1, 1, 1], padding="SAME")
-    layer = tf.nn.bias_add(layer, bias)
-    layer = tf.nn.relu(layer)
-    layer = tf.nn.max_pool(
-        layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
-
-  # [BATCH_SIZE, 32, 32, 8] -> [BATCH_SIZE, 8, 8, 8]
-  with tf.variable_scope("conv2"):
-    weights = tf.get_variable(
-        "weights", [3, 3, 8, 8], initializer=tf.random_normal_initializer())
-    bias = tf.get_variable(
-        "bias", [8], initializer=tf.random_normal_initializer())
-
-    layer = tf.nn.conv2d(layer, weights, strides=[1, 1, 1, 1], padding="SAME")
-    layer = tf.nn.bias_add(layer, bias)
-    layer = tf.nn.relu(layer)
-    layer = tf.nn.max_pool(
-        layer, ksize=[1, 4, 4, 1], strides=[1, 4, 4, 1], padding="SAME")
-
-  # [BATCH_SIZE, 8, 8, 8] -> [BATCH_SIZE, 8 * 8 * 8]
-  layer = tf.reshape(layer, [-1, 8 * 8 * 8])
-
-  # [BATCH_SIZE, 8 * 8 * 8] -> [BATCH_SIZE, LABEL_SIZE]
-  with tf.variable_scope("output"):
-    weights = tf.get_variable(
-        "weights", [8 * 8 * 8, FLAGS.label_size],
-        initializer=tf.random_normal_initializer())
-    bias = tf.get_variable(
-        "bias", [FLAGS.label_size], initializer=tf.random_normal_initializer())
-    layer = tf.add(tf.matmul(layer, weights), bias)
-
-  return layer
-
-
 def inference(inputs, input_units, output_units, is_train=True):
+  """
+  Define the model by model name.
+  
+  Return:
+    The logit of the model output.
+  """
+
   if FLAGS.model == "dnn":
-    return dnn_inference(inputs, input_units, output_units, is_train)
+    return model.dnn_inference(inputs, input_units, output_units, is_train,
+                               FLAGS)
   elif FLAGS.model == "lr":
-    return lr_inference(inputs, input_units, output_units, is_train)
+    return model.lr_inference(inputs, input_units, output_units, is_train,
+                              FLAGS)
   elif FLAGS.model == "wide_and_deep":
-    return wide_and_deep_inference(inputs, input_units, output_units, is_train)
+    return model.wide_and_deep_inference(inputs, input_units, output_units,
+                                         is_train, FLAGS)
   elif FLAGS.model == "customized":
-    return customized_inference(inputs, input_units, output_units, is_train)
+    return model.customized_inference(inputs, input_units, output_units,
+                                      is_train, FLAGS)
   elif FLAGS.model == "cnn":
-    return cnn_inference(inputs, input_units, output_units, is_train)
-
-
-def _parse_tfrecords_function(example_proto):
-  features = {"features": tf.FixedLenFeature([FLAGS.feature_size], tf.float32),
-              "label": tf.FixedLenFeature([], tf.float32, default_value=0.0)}
-  parsed_features = tf.parse_single_example(example_proto, features)
-  return parsed_features["features"], parsed_features["label"]
-
+    return model.cnn_inference(inputs, input_units, output_units, is_train,
+                               FLAGS)
 
 
 logging.basicConfig(level=logging.INFO)
 FLAGS = define_flags()
-assert_flags(FLAGS)
 if FLAGS.enable_colored_log:
   import coloredlogs
   coloredlogs.install()
@@ -305,39 +264,34 @@ def main():
   if os.path.exists(FLAGS.output_path) == False:
     os.makedirs(FLAGS.output_path)
 
-
-
-  epoch_number = 50
   batch_size = 10
   buffer_size = 100
 
-
-  # Construct the dataset op
-  EPOCH_NUMBER = FLAGS.epoch_number
-  if EPOCH_NUMBER <= 0:
-    EPOCH_NUMBER = None
+  # Step 1: Construct the dataset op
+  epoch_number = FLAGS.epoch_number
+  if epoch_number <= 0:
+    epoch_number = -1
 
   train_filename_list = [FLAGS.train_file]
-  validation_filename_list = [FLAGS.validation_file]
-
   train_filename_placeholder = tf.placeholder(tf.string, shape=[None])
-  validation_filename_placeholder = tf.placeholder(tf.string, shape=[None])
-
   train_dataset = tf.data.TFRecordDataset(train_filename_placeholder)
-  validation_dataset = tf.data.TFRecordDataset(validation_filename_placeholder)
-
-  train_dataset = train_dataset.map(_parse_tfrecords_function).repeat(epoch_number).batch(batch_size).shuffle(buffer_size=buffer_size)
-  validation_dataset = validation_dataset.map(_parse_tfrecords_function).repeat(epoch_number).batch(batch_size).shuffle(buffer_size=buffer_size)
-
+  train_dataset = train_dataset.map(parse_tfrecords_function).repeat(
+      epoch_number).batch(batch_size).shuffle(buffer_size=buffer_size)
   train_dataset_iterator = train_dataset.make_initializable_iterator()
-  validation_dataset_iterator = validation_dataset.make_initializable_iterator()
-
   batch_features_op, batch_label_op = train_dataset_iterator.get_next()
-  validate_batch_features, validate_batch_labels = validation_dataset_iterator.get_next()
-
   batch_label_op = tf.cast(batch_label_op, tf.int32)
-  validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
 
+  validation_filename_list = [FLAGS.validation_file]
+  validation_filename_placeholder = tf.placeholder(tf.string, shape=[None])
+  validation_dataset = tf.data.TFRecordDataset(validation_filename_placeholder)
+  validation_dataset = validation_dataset.map(
+      parse_tfrecords_function).repeat(epoch_number).batch(
+          batch_size).shuffle(buffer_size=buffer_size)
+  validation_dataset_iterator = validation_dataset.make_initializable_iterator(
+  )
+  validate_batch_features, validate_batch_labels = validation_dataset_iterator.get_next(
+  )
+  validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
 
   """
   if FLAGS.train_file_format == "tfrecords":
@@ -348,22 +302,17 @@ def main():
     #read_and_decode_function = read_and_decode_csv
   """
 
-  # Define the model
+  # Step 2: Define the model
   input_units = FLAGS.feature_size
   output_units = FLAGS.label_size
-
-  logging.info("Use the model: {}, model network: {}".format(
-      FLAGS.model, FLAGS.dnn_struct))
-
-  #logits = inference(batch_features, input_units, output_units, True)
   logits = inference(batch_features_op, input_units, output_units, True)
-
 
   if FLAGS.scenario == "classification":
     batch_label_op = tf.to_int64(batch_label_op)
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
         #logits=logits, labels=batch_labels)
-        logits=logits, labels=batch_label_op)
+        logits=logits,
+        labels=batch_label_op)
     loss = tf.reduce_mean(cross_entropy, name="loss")
   elif FLAGS.scenario == "regression":
     msl = tf.square(logits - batch_label_op, name="msl")
@@ -391,8 +340,8 @@ def main():
     batch_labels = tf.to_int64(batch_label_op)
 
   # Define accuracy op for train data
-  train_accuracy_logits = inference(batch_features_op, input_units, output_units,
-                                    False)
+  train_accuracy_logits = inference(batch_features_op, input_units,
+                                    output_units, False)
   train_softmax = tf.nn.softmax(train_accuracy_logits)
   train_correct_prediction = tf.equal(
       tf.argmax(train_softmax, 1), batch_label_op)
@@ -466,18 +415,20 @@ def main():
       tf.local_variables_initializer()
   ]
 
-  # Create session to run
+  # Step 3: Create session to run
   with tf.Session() as sess:
     writer = tf.summary.FileWriter(FLAGS.output_path, sess.graph)
     sess.run(init_op)
-
-
-    sess.run(train_dataset_iterator.initializer, feed_dict={train_filename_placeholder: train_filename_list})
-    sess.run(validation_dataset_iterator.initializer, feed_dict={validation_filename_placeholder: validation_filename_list})
+    sess.run(
+        train_dataset_iterator.initializer,
+        feed_dict={train_filename_placeholder: train_filename_list})
+    sess.run(
+        validation_dataset_iterator.initializer,
+        feed_dict={validation_filename_placeholder: validation_filename_list})
 
     if FLAGS.mode == "train":
-      # Restore session and start queue runner
-      restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT)
+      if FLAGS.resume_from_checkpoint:
+        restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT)
 
       start_time = datetime.datetime.now()
 
@@ -486,10 +437,10 @@ def main():
           if FLAGS.enable_benchmark:
             sess.run(train_op)
           else:
-            _, step = sess.run([train_op, global_step])
+            _, global_step_value = sess.run([train_op, global_step])
 
-            # Print state while training
-            if step % FLAGS.steps_to_validate == 0:
+            # Step 4: Print state while training
+            if global_step_value % FLAGS.steps_to_validate == 0:
               if FLAGS.scenario == "classification":
                 loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
                     [
@@ -497,68 +448,51 @@ def main():
                         validate_auc, summary_op
                     ])
                 end_time = datetime.datetime.now()
+
                 logging.info(
                     "[{}] Step: {}, loss: {}, train_acc: {}, train_auc: {}, valid_acc: {}, valid_auc: {}".
-                    format(end_time - start_time, step, loss_value,
-                           train_accuracy_value, train_auc_value,
+                    format(end_time - start_time, global_step_value,
+                           loss_value, train_accuracy_value, train_auc_value,
                            validate_accuracy_value, validate_auc_value))
+
               elif FLAGS.scenario == "regression":
                 loss_value, summary_value = sess.run([loss, summary_op])
                 end_time = datetime.datetime.now()
                 logging.info("[{}] Step: {}, loss: {}".format(
-                    end_time - start_time, step, loss_value))
+                    end_time - start_time, global_step_value, loss_value))
 
-              writer.add_summary(summary_value, step)
-              saver.save(sess, CHECKPOINT_FILE, global_step=step)
-              #saver.save(sess, CHECKPOINT_FILE)
+              writer.add_summary(summary_value, global_step_value)
+              saver.save(sess, CHECKPOINT_FILE, global_step=global_step_value)
+
               start_time = end_time
       except tf.errors.OutOfRangeError:
         if FLAGS.enable_benchmark:
-          print("Finish training for benchmark")
-          sys.exit(0)
+          logging.info("Finish training for benchmark")
         else:
-          # Export the model after training
-          print("Do not export the model yet")
-          sys.exit(0)
-
-
+          # Step 5: Export the model after training
+          save_model(
+              FLAGS.model_path,
+              FLAGS.model_version,
+              sess,
+              model_signature,
+              is_save_graph=False)
 
     elif FLAGS.mode == "savedmodel":
       if restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT) == False:
         logging.error("No checkpoint for exporting model, exit now")
-        sys.exit(1)
+        return
 
-      graph_file_name = "graph.pb"
-      logging.info("Export the graph to: {}".format(FLAGS.model_path))
-      tf.train.write_graph(
-          sess.graph_def, FLAGS.model_path, graph_file_name, as_text=False)
-
-      export_path = os.path.join(
-          compat.as_bytes(FLAGS.model_path),
-          compat.as_bytes(str(FLAGS.model_version)))
-      logging.info("Export the model to {}".format(export_path))
-
-      try:
-        legacy_init_op = tf.group(
-            tf.tables_initializer(), name='legacy_init_op')
-        builder = saved_model_builder.SavedModelBuilder(export_path)
-        builder.add_meta_graph_and_variables(
-            sess, [tag_constants.SERVING],
-            clear_devices=True,
-            signature_def_map={
-                signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
-                model_signature,
-            },
-            legacy_init_op=legacy_init_op)
-
-        builder.save()
-      except Exception as e:
-        logging.error("Fail to export saved model, exception: {}".format(e))
+      save_model(
+          FLAGS.model_path,
+          FLAGS.model_version,
+          sess,
+          model_signature,
+          is_save_graph=False)
 
     elif FLAGS.mode == "inference":
       if restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT) == False:
-        logging.error("No checkpoint for inferencing, exit now")
-        sys.exit(1)
+        logging.error("No checkpoint for inference, exit now")
+        return
 
       # Load inference test data
       inference_result_file_name = FLAGS.inference_result_file
@@ -598,4 +532,3 @@ def main():
 
 if __name__ == "__main__":
   main()
-
