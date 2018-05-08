@@ -28,7 +28,6 @@ def define_flags():
   flags = tf.app.flags
   flags.DEFINE_string("mode", "train", "Support train, inference, savedmodel")
   flags.DEFINE_boolean("enable_benchmark", False, "Enable benchmark")
-  flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
   flags.DEFINE_boolean("resume_from_checkpoint", True, "Resume or not")
   flags.DEFINE_string("scenario", "classification",
                       "Support classification, regression")
@@ -52,11 +51,9 @@ def define_flags():
                       "Support dnn, lr, wide_and_deep, customized, cnn")
   flags.DEFINE_string("dnn_struct", "128 32 8", "DNN struct")
   flags.DEFINE_integer("epoch_number", 100, "Number of epoches")
-  flags.DEFINE_integer("batch_size", 1024, "Batch size")
-  flags.DEFINE_integer("validate_batch_size", 1024,
+  flags.DEFINE_integer("train_batch_size", 64, "Batch size")
+  flags.DEFINE_integer("validation_batch_size", 64,
                        "Batch size for validation")
-  flags.DEFINE_integer("batch_thread_number", 1, "Batch thread number")
-  flags.DEFINE_integer("min_after_dequeue", 100, "Min after dequeue")
   flags.DEFINE_boolean("enable_bn", False, "Enable batch normalization")
   flags.DEFINE_float("bn_epsilon", 0.001, "Epsilon of batch normalization")
   flags.DEFINE_boolean("enable_dropout", False, "Enable dropout")
@@ -91,7 +88,7 @@ def define_flags():
 
 def get_optimizer_by_name(optimizer_name, learning_rate):
   """
-  Get optimizer object by the string.
+  Get optimizer object by the optimizer name.
   
   Args:
     optimizer_name: Name of the optimizer. 
@@ -139,7 +136,6 @@ def save_model(model_path,
   """
 
   export_path = os.path.join(model_path, str(model_version))
-
   if os.path.isdir(export_path) == True:
     logging.error("The model exists in path: {}".format(export_path))
     return
@@ -249,50 +245,49 @@ def inference(inputs, input_units, output_units, is_train=True):
 
 logging.basicConfig(level=logging.INFO)
 FLAGS = define_flags()
-if FLAGS.enable_colored_log:
-  import coloredlogs
-  coloredlogs.install()
 
 
 def main():
+  """
+  Train the TensorFlow models.
+  """
+
   # Get hyper-parameters
   if os.path.exists(FLAGS.checkpoint_path) == False:
     os.makedirs(FLAGS.checkpoint_path)
-  CHECKPOINT_FILE = FLAGS.checkpoint_path + "/checkpoint.ckpt"
-  LATEST_CHECKPOINT = tf.train.latest_checkpoint(FLAGS.checkpoint_path)
+  checkpoint_file_path = FLAGS.checkpoint_path + "/checkpoint.ckpt"
+  latest_checkpoint_file_path = tf.train.latest_checkpoint(
+      FLAGS.checkpoint_path)
 
   if os.path.exists(FLAGS.output_path) == False:
     os.makedirs(FLAGS.output_path)
-
-  batch_size = 10
-  buffer_size = 100
 
   # Step 1: Construct the dataset op
   epoch_number = FLAGS.epoch_number
   if epoch_number <= 0:
     epoch_number = -1
+  train_buffer_size = FLAGS.train_batch_size * 3
+  validation_buffer_size = FLAGS.train_batch_size * 3
 
   train_filename_list = [FLAGS.train_file]
   train_filename_placeholder = tf.placeholder(tf.string, shape=[None])
   train_dataset = tf.data.TFRecordDataset(train_filename_placeholder)
   train_dataset = train_dataset.map(parse_tfrecords_function).repeat(
-      epoch_number).batch(batch_size).shuffle(buffer_size=buffer_size)
+      epoch_number).batch(FLAGS.train_batch_size).shuffle(
+          buffer_size=train_buffer_size)
   train_dataset_iterator = train_dataset.make_initializable_iterator()
-  batch_features_op, batch_label_op = train_dataset_iterator.get_next()
-  batch_label_op = tf.cast(batch_label_op, tf.int32)
+  train_features_op, train_label_op = train_dataset_iterator.get_next()
 
   validation_filename_list = [FLAGS.validation_file]
   validation_filename_placeholder = tf.placeholder(tf.string, shape=[None])
   validation_dataset = tf.data.TFRecordDataset(validation_filename_placeholder)
-  validation_dataset = validation_dataset.map(
-      parse_tfrecords_function).repeat(epoch_number).batch(
-          batch_size).shuffle(buffer_size=buffer_size)
+  validation_dataset = validation_dataset.map(parse_tfrecords_function).repeat(
+      epoch_number).batch(FLAGS.validation_batch_size).shuffle(
+          buffer_size=validation_buffer_size)
   validation_dataset_iterator = validation_dataset.make_initializable_iterator(
   )
-  validate_batch_features, validate_batch_labels = validation_dataset_iterator.get_next(
+  validation_features_op, validation_label_op = validation_dataset_iterator.get_next(
   )
-  validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
-
   """
   if FLAGS.train_file_format == "tfrecords":
     pass
@@ -305,20 +300,19 @@ def main():
   # Step 2: Define the model
   input_units = FLAGS.feature_size
   output_units = FLAGS.label_size
-  logits = inference(batch_features_op, input_units, output_units, True)
+  logits = inference(train_features_op, input_units, output_units, True)
 
   if FLAGS.scenario == "classification":
-    batch_label_op = tf.to_int64(batch_label_op)
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
-        #logits=logits, labels=batch_labels)
-        logits=logits,
-        labels=batch_label_op)
+        logits=logits, labels=train_label_op)
     loss = tf.reduce_mean(cross_entropy, name="loss")
   elif FLAGS.scenario == "regression":
-    msl = tf.square(logits - batch_label_op, name="msl")
+    msl = tf.square(logits - train_label_op, name="msl")
     loss = tf.reduce_mean(msl, name="loss")
 
   global_step = tf.Variable(0, name="global_step", trainable=False)
+  learning_rate = FLAGS.learning_rate
+
   if FLAGS.enable_lr_decay:
     logging.info(
         "Enable learning rate decay rate: {}".format(FLAGS.lr_decay_rate))
@@ -329,66 +323,40 @@ def main():
         100000,
         FLAGS.lr_decay_rate,
         staircase=True)
-  else:
-    learning_rate = FLAGS.learning_rate
+
   optimizer = get_optimizer_by_name(FLAGS.optimizer, learning_rate)
   train_op = optimizer.minimize(loss, global_step=global_step)
+
+  # Need to re-use the Variables for training and validation
   tf.get_variable_scope().reuse_variables()
 
-  # Avoid error when not using acc and auc op
-  if FLAGS.scenario == "regression":
-    batch_labels = tf.to_int64(batch_label_op)
-
-  # Define accuracy op for train data
-  train_accuracy_logits = inference(batch_features_op, input_units,
+  # Define accuracy op and auc op for train
+  train_accuracy_logits = inference(train_features_op, input_units,
                                     output_units, False)
-  train_softmax = tf.nn.softmax(train_accuracy_logits)
-  train_correct_prediction = tf.equal(
-      tf.argmax(train_softmax, 1), batch_label_op)
-  train_accuracy = tf.reduce_mean(
-      tf.cast(train_correct_prediction, tf.float32))
+  train_softmax_op, train_accuracy_op = model.compute_softmax_and_accuracy(
+      train_accuracy_logits, train_label_op)
+  train_auc_op = model.compute_auc(train_softmax_op, train_label_op,
+                                   FLAGS.label_size)
 
-  # Define auc op for train data
-  batch_labels = tf.cast(batch_label_op, tf.int32)
-  sparse_labels = tf.reshape(batch_labels, [-1, 1])
-  derived_size = tf.shape(batch_labels)[0]
-  indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-  concated = tf.concat(axis=1, values=[indices, sparse_labels])
-  outshape = tf.stack([derived_size, FLAGS.label_size])
-  new_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
-  _, train_auc = tf.contrib.metrics.streaming_auc(train_softmax,
-                                                  new_batch_labels)
-
-  # Define accuracy op for validate data
-  validate_accuracy_logits = inference(validate_batch_features, input_units,
-                                       output_units, False)
-  validate_softmax = tf.nn.softmax(validate_accuracy_logits)
-  validate_batch_labels = tf.to_int64(validate_batch_labels)
-  validate_correct_prediction = tf.equal(
-      tf.argmax(validate_softmax, 1), validate_batch_labels)
-  validate_accuracy = tf.reduce_mean(
-      tf.cast(validate_correct_prediction, tf.float32))
-
-  # Define auc op for validate data
-  validate_batch_labels = tf.cast(validate_batch_labels, tf.int32)
-  sparse_labels = tf.reshape(validate_batch_labels, [-1, 1])
-  derived_size = tf.shape(validate_batch_labels)[0]
-  indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
-  concated = tf.concat(axis=1, values=[indices, sparse_labels])
-  outshape = tf.stack([derived_size, FLAGS.label_size])
-  new_validate_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
-  _, validate_auc = tf.contrib.metrics.streaming_auc(validate_softmax,
-                                                     new_validate_batch_labels)
+  # Define accuracy op and auc op for validation
+  validation_accuracy_logits = inference(validation_features_op, input_units,
+                                         output_units, False)
+  validation_softmax_op, validation_accuracy_op = model.compute_softmax_and_accuracy(
+      validation_accuracy_logits, validation_label_op)
+  validation_auc_op = model.compute_auc(validation_softmax_op,
+                                        validation_label_op, FLAGS.label_size)
 
   # Define inference op
   inference_features = tf.placeholder(
       "float", [None, FLAGS.feature_size], name="features")
   inference_logits = inference(inference_features, input_units, output_units,
                                False)
-  inference_softmax = tf.nn.softmax(inference_logits, name="output_softmax")
-  inference_op = tf.argmax(inference_softmax, 1, name="output_prediction")
+  inference_softmax_op = tf.nn.softmax(
+      inference_logits, name="inference_softmax")
+  inference_prediction_op = tf.argmax(
+      inference_softmax_op, 1, name="inference_prediction")
   keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1], name="keys")
-  keys_identity = tf.identity(keys_placeholder, name="output_keys")
+  keys_identity = tf.identity(keys_placeholder, name="inference_keys")
   model_signature = signature_def_utils.build_signature_def(
       inputs={
           "keys": utils.build_tensor_info(keys_placeholder),
@@ -396,8 +364,8 @@ def main():
       },
       outputs={
           "keys": utils.build_tensor_info(keys_identity),
-          "prediction": utils.build_tensor_info(inference_op),
-          "softmax": utils.build_tensor_info(inference_softmax),
+          "prediction": utils.build_tensor_info(inference_prediction_op),
+          "softmax": utils.build_tensor_info(inference_softmax_op),
       },
       method_name=signature_constants.PREDICT_METHOD_NAME)
 
@@ -405,10 +373,10 @@ def main():
   saver = tf.train.Saver()
   tf.summary.scalar("loss", loss)
   if FLAGS.scenario == "classification":
-    tf.summary.scalar("train_accuracy", train_accuracy)
-    tf.summary.scalar("train_auc", train_auc)
-    tf.summary.scalar("validate_accuracy", validate_accuracy)
-    tf.summary.scalar("validate_auc", validate_auc)
+    tf.summary.scalar("train_accuracy", train_accuracy_op)
+    tf.summary.scalar("train_auc", train_auc_op)
+    tf.summary.scalar("validate_accuracy", validation_accuracy_op)
+    tf.summary.scalar("validate_auc", validation_auc_op)
   summary_op = tf.summary.merge_all()
   init_op = [
       tf.global_variables_initializer(),
@@ -420,32 +388,36 @@ def main():
     writer = tf.summary.FileWriter(FLAGS.output_path, sess.graph)
     sess.run(init_op)
     sess.run(
-        train_dataset_iterator.initializer,
-        feed_dict={train_filename_placeholder: train_filename_list})
-    sess.run(
-        validation_dataset_iterator.initializer,
-        feed_dict={validation_filename_placeholder: validation_filename_list})
+        [
+            train_dataset_iterator.initializer,
+            validation_dataset_iterator.initializer
+        ],
+        feed_dict={
+            train_filename_placeholder: train_filename_list,
+            validation_filename_placeholder: validation_filename_list
+        })
 
     if FLAGS.mode == "train":
       if FLAGS.resume_from_checkpoint:
-        restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT)
-
-      start_time = datetime.datetime.now()
+        restore_from_checkpoint(sess, saver, latest_checkpoint_file_path)
 
       try:
+        start_time = datetime.datetime.now()
+
         while True:
           if FLAGS.enable_benchmark:
             sess.run(train_op)
           else:
+
             _, global_step_value = sess.run([train_op, global_step])
 
-            # Step 4: Print state while training
+            # Step 4: Display training metrics after steps
             if global_step_value % FLAGS.steps_to_validate == 0:
               if FLAGS.scenario == "classification":
                 loss_value, train_accuracy_value, train_auc_value, validate_accuracy_value, validate_auc_value, summary_value = sess.run(
                     [
-                        loss, train_accuracy, train_auc, validate_accuracy,
-                        validate_auc, summary_op
+                        loss, train_accuracy_op, train_auc_op,
+                        validation_accuracy_op, validation_auc_op, summary_op
                     ])
                 end_time = datetime.datetime.now()
 
@@ -462,9 +434,11 @@ def main():
                     end_time - start_time, global_step_value, loss_value))
 
               writer.add_summary(summary_value, global_step_value)
-              saver.save(sess, CHECKPOINT_FILE, global_step=global_step_value)
+              saver.save(
+                  sess, checkpoint_file_path, global_step=global_step_value)
 
               start_time = end_time
+
       except tf.errors.OutOfRangeError:
         if FLAGS.enable_benchmark:
           logging.info("Finish training for benchmark")
@@ -478,7 +452,8 @@ def main():
               is_save_graph=False)
 
     elif FLAGS.mode == "savedmodel":
-      if restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT) == False:
+      if restore_from_checkpoint(sess, saver,
+                                 latest_checkpoint_file_path) == False:
         logging.error("No checkpoint for exporting model, exit now")
         return
 
@@ -490,11 +465,12 @@ def main():
           is_save_graph=False)
 
     elif FLAGS.mode == "inference":
-      if restore_from_checkpoint(sess, saver, LATEST_CHECKPOINT) == False:
+      if restore_from_checkpoint(sess, saver,
+                                 latest_checkpoint_file_path) == False:
         logging.error("No checkpoint for inference, exit now")
         return
 
-      # Load inference test data
+      # Load test data
       inference_result_file_name = FLAGS.inference_result_file
       inference_test_file_name = FLAGS.inference_data_file
       inference_data = np.genfromtxt(inference_test_file_name, delimiter=",")
@@ -504,7 +480,7 @@ def main():
       # Run inference
       start_time = datetime.datetime.now()
       prediction, prediction_softmax = sess.run(
-          [inference_op, inference_softmax],
+          [inference_prediction_op, inference_softmax_op],
           feed_dict={inference_features: inference_data_features})
       end_time = datetime.datetime.now()
 

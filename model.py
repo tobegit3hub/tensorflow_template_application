@@ -131,7 +131,7 @@ def cnn_inference(inputs, input_units, output_units, is_train=True,
 
   # TODO: Change if validate_batch_size is different
   # [BATCH_SIZE, 512 * 512 * 1] -> [BATCH_SIZE, 512, 512, 1]
-  inputs = tf.reshape(inputs, [FLAGS.batch_size, 512, 512, 1])
+  inputs = tf.reshape(inputs, [FLAGS.train_batch_size, 512, 512, 1])
 
   # [BATCH_SIZE, 512, 512, 1] -> [BATCH_SIZE, 128, 128, 8]
   with tf.variable_scope("conv0"):
@@ -185,3 +185,46 @@ def cnn_inference(inputs, input_units, output_units, is_train=True,
     layer = tf.add(tf.matmul(layer, weights), bias)
 
   return layer
+
+
+def compute_softmax_and_accuracy(logits, labels):
+  """
+  Compute the softmax and accuracy of the logits and labels.
+  
+  Args:
+    logits: The logits from the model.
+    labels: The labels.
+  
+  Return:
+    The softmax op and accuracy op.
+  """
+  softmax_op = tf.nn.softmax(logits)
+  correct_prediction_op = tf.equal(tf.argmax(softmax_op, 1), labels)
+  accuracy_op = tf.reduce_mean(tf.cast(correct_prediction_op, tf.float32))
+
+  return softmax_op, accuracy_op
+
+
+def compute_auc(softmax_op, label_op, label_size):
+  """
+  Compute the auc of the softmax result and labels.
+  
+  Args:
+    softmax_op: The softmax op.
+    label_op: The label op.
+    label_size: The label size.
+   
+  Return:
+    The auc op.
+  """
+
+  batch_labels = tf.cast(label_op, tf.int32)
+  sparse_labels = tf.reshape(batch_labels, [-1, 1])
+  derived_size = tf.shape(batch_labels)[0]
+  indices = tf.reshape(tf.range(0, derived_size, 1), [-1, 1])
+  concated = tf.concat(axis=1, values=[indices, sparse_labels])
+  outshape = tf.stack([derived_size, label_size])
+  new_batch_labels = tf.sparse_to_dense(concated, outshape, 1.0, 0.0)
+  _, auc_op = tf.contrib.metrics.streaming_auc(softmax_op, new_batch_labels)
+
+  return auc_op
