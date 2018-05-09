@@ -33,11 +33,11 @@ def define_flags():
                       "Support classification, regression")
   flags.DEFINE_integer("feature_size", 9, "Number of feature size")
   flags.DEFINE_integer("label_size", 2, "Number of label size")
-  flags.DEFINE_string("train_file_format", "tfrecords",
-                      "Support tfrecords, csv")
-  flags.DEFINE_string("train_file", "./data/cancer/cancer_train.csv.tfrecords",
+  flags.DEFINE_string("file_format", "tfrecords", "Support tfrecords, csv")
+  flags.DEFINE_string("train_files",
+                      "./data/cancer/cancer_train.csv.tfrecords",
                       "Train files which supports glob pattern")
-  flags.DEFINE_string("validation_file",
+  flags.DEFINE_string("validation_files",
                       "./data/cancer/cancer_test.csv.tfrecords",
                       "Validate files which supports glob pattern")
   flags.DEFINE_string("inference_data_file", "./data/cancer/cancer_test.csv",
@@ -71,7 +71,7 @@ def define_flags():
   # Check parameters
   assert (FLAGS.mode in ["train", "inference", "savedmodel"])
   assert (FLAGS.scenario in ["classification", "regression"])
-  assert (FLAGS.train_file_format in ["tfrecords", "csv"])
+  assert (FLAGS.file_format in ["tfrecords", "csv"])
   assert (FLAGS.optimizer in [
       "sgd", "adadelta", "adagrad", "adam", "ftrl", "rmsprop"
   ])
@@ -207,7 +207,7 @@ def parse_tfrecords_function(example_proto):
 
 
 # TODO: Change for dataset api
-def read_and_decode_csv(filename_queue):
+def read_and_decode_csv_old(filename_queue):
   # Notice that it supports label in the last column only
   reader = tf.TextLineReader()
   key, value = reader.read(filename_queue)
@@ -216,6 +216,31 @@ def read_and_decode_csv(filename_queue):
   label = columns[-1]
   features = tf.stack(columns[0:-1])
   return label, features
+
+
+def parse_csv_function(line):
+  # Metadata describing the text columns
+  COLUMNS = [
+      "feature0", "feature1", "feature2", "feature3", "feature4", "feature5",
+      "feature6", "feature7", "feature8", "label"
+  ]
+  FIELD_DEFAULTS = [[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
+                    [0.0], [0]]
+
+  # Decode the line into its fields
+  fields = tf.decode_csv(line, FIELD_DEFAULTS)
+
+  # Pack the result into a dictionary
+  #features = dict(zip(COLUMNS,fields))
+
+  # Separate the label from the features
+  #label = features.pop("label")
+
+  label = fields[-1]
+  label = tf.cast(label, tf.int64)
+  features = tf.stack(fields[0:-1])
+
+  return features, label
 
 
 def inference(inputs, input_units, output_units, is_train=True):
@@ -269,33 +294,43 @@ def main():
   train_buffer_size = FLAGS.train_batch_size * 3
   validation_buffer_size = FLAGS.train_batch_size * 3
 
-  train_filename_list = [FLAGS.train_file]
+  train_filename_list = [filename for filename in FLAGS.train_files.split(",")]
   train_filename_placeholder = tf.placeholder(tf.string, shape=[None])
-  train_dataset = tf.data.TFRecordDataset(train_filename_placeholder)
-  train_dataset = train_dataset.map(parse_tfrecords_function).repeat(
-      epoch_number).batch(FLAGS.train_batch_size).shuffle(
-          buffer_size=train_buffer_size)
+  if FLAGS.file_format == "tfrecords":
+    train_dataset = tf.data.TFRecordDataset(train_filename_placeholder)
+    train_dataset = train_dataset.map(parse_tfrecords_function).repeat(
+        epoch_number).batch(FLAGS.train_batch_size).shuffle(
+            buffer_size=train_buffer_size)
+  elif FLAGS.file_format == "csv":
+    # Skip the header or not
+    train_dataset = tf.data.TextLineDataset(train_filename_placeholder)
+    train_dataset = train_dataset.map(parse_csv_function).repeat(
+        epoch_number).batch(FLAGS.train_batch_size).shuffle(
+            buffer_size=train_buffer_size)
   train_dataset_iterator = train_dataset.make_initializable_iterator()
   train_features_op, train_label_op = train_dataset_iterator.get_next()
 
-  validation_filename_list = [FLAGS.validation_file]
+  validation_filename_list = [
+      filename for filename in FLAGS.validation_files.split(",")
+  ]
   validation_filename_placeholder = tf.placeholder(tf.string, shape=[None])
-  validation_dataset = tf.data.TFRecordDataset(validation_filename_placeholder)
-  validation_dataset = validation_dataset.map(parse_tfrecords_function).repeat(
-      epoch_number).batch(FLAGS.validation_batch_size).shuffle(
-          buffer_size=validation_buffer_size)
+  if FLAGS.file_format == "tfrecords":
+    validation_dataset = tf.data.TFRecordDataset(
+        validation_filename_placeholder)
+    validation_dataset = validation_dataset.map(
+        parse_tfrecords_function).repeat(epoch_number).batch(
+            FLAGS.validation_batch_size).shuffle(
+                buffer_size=validation_buffer_size)
+  elif FLAGS.file_format == "csv":
+    validation_dataset = tf.data.TextLineDataset(
+        validation_filename_placeholder)
+    validation_dataset = validation_dataset.map(parse_csv_function).repeat(
+        epoch_number).batch(FLAGS.validation_batch_size).shuffle(
+            buffer_size=validation_buffer_size)
   validation_dataset_iterator = validation_dataset.make_initializable_iterator(
   )
   validation_features_op, validation_label_op = validation_dataset_iterator.get_next(
   )
-  """
-  if FLAGS.train_file_format == "tfrecords":
-    pass
-    #read_and_decode_function = read_and_decode_tfrecords
-  elif FLAGS.train_file_format == "csv":
-    pass
-    #read_and_decode_function = read_and_decode_csv
-  """
 
   # Step 2: Define the model
   input_units = FLAGS.feature_size
