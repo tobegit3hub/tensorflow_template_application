@@ -31,6 +31,9 @@ def define_flags():
   flags.DEFINE_boolean("resume_from_checkpoint", True, "Resume or not")
   flags.DEFINE_string("scenario", "classification",
                       "Support classification, regression")
+  flags.DEFINE_string(
+      "loss", "sparse_cross_entropy",
+      "Support sparse_cross_entropy, cross_entropy, mean_square")
   flags.DEFINE_integer("feature_size", 9, "Number of feature size")
   flags.DEFINE_integer("label_size", 2, "Number of label size")
   flags.DEFINE_string("file_format", "tfrecords", "Support tfrecords, csv")
@@ -47,8 +50,10 @@ def define_flags():
   flags.DEFINE_string("optimizer", "adagrad",
                       "Support sgd, adadelta, adagrad, adam, ftrl, rmsprop")
   flags.DEFINE_float("learning_rate", 0.01, "Learning rate")
-  flags.DEFINE_string("model", "dnn",
-                      "Support dnn, lr, wide_and_deep, customized, cnn")
+  flags.DEFINE_string(
+      "model", "dnn",
+      "Support dnn, lr, wide_and_deep, customized, cnn, lstm, bidirectional_lstm, gru"
+  )
   flags.DEFINE_string("dnn_struct", "128 32 8", "DNN struct")
   flags.DEFINE_integer("epoch_number", 100, "Number of epoches")
   flags.DEFINE_integer("train_batch_size", 64, "Batch size")
@@ -71,11 +76,17 @@ def define_flags():
   # Check parameters
   assert (FLAGS.mode in ["train", "inference", "savedmodel"])
   assert (FLAGS.scenario in ["classification", "regression"])
+  assert (FLAGS.loss in [
+      "sparse_cross_entropy", "cross_entropy", "mean_square"
+  ])
   assert (FLAGS.file_format in ["tfrecords", "csv"])
   assert (FLAGS.optimizer in [
       "sgd", "adadelta", "adagrad", "adam", "ftrl", "rmsprop"
   ])
-  assert (FLAGS.model in ["dnn", "lr", "wide_and_deep", "customized", "cnn"])
+  assert (FLAGS.model in [
+      "dnn", "lr", "wide_and_deep", "customized", "cnn", "customized_cnn",
+      "lstm", "bidirectional_lstm", "gru"
+  ])
 
   # Print flags
   parameter_value_map = {}
@@ -206,35 +217,21 @@ def parse_tfrecords_function(example_proto):
   return parsed_features["features"], parsed_features["label"]
 
 
-# TODO: Change for dataset api
-def read_and_decode_csv_old(filename_queue):
-  # Notice that it supports label in the last column only
-  reader = tf.TextLineReader()
-  key, value = reader.read(filename_queue)
-  record_defaults = [[1.0] for i in range(FLAGS.feature_size)] + [[0]]
-  columns = tf.decode_csv(value, record_defaults=record_defaults)
-  label = columns[-1]
-  features = tf.stack(columns[0:-1])
-  return label, features
-
-
 def parse_csv_function(line):
-  # Metadata describing the text columns
-  COLUMNS = [
-      "feature0", "feature1", "feature2", "feature3", "feature4", "feature5",
-      "feature6", "feature7", "feature8", "label"
-  ]
+  """
+  Decode CSV for Dataset.
+  
+  Args:
+    line: One line data of the CSV.
+  
+  Return:
+    The op of features and labels
+  """
+
   FIELD_DEFAULTS = [[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
                     [0.0], [0]]
 
-  # Decode the line into its fields
   fields = tf.decode_csv(line, FIELD_DEFAULTS)
-
-  # Pack the result into a dictionary
-  #features = dict(zip(COLUMNS,fields))
-
-  # Separate the label from the features
-  #label = features.pop("label")
 
   label = fields[-1]
   label = tf.cast(label, tf.int64)
@@ -265,6 +262,18 @@ def inference(inputs, input_units, output_units, is_train=True):
                                       is_train, FLAGS)
   elif FLAGS.model == "cnn":
     return model.cnn_inference(inputs, input_units, output_units, is_train,
+                               FLAGS)
+  elif FLAGS.model == "customized_cnn":
+    return model.customized_cnn_inference(inputs, input_units, output_units,
+                                          is_train, FLAGS)
+  elif FLAGS.model == "lstm":
+    return model.lstm_inference(inputs, input_units, output_units, is_train,
+                                FLAGS)
+  elif FLAGS.model == "bidirectional_lstm":
+    return model.bidirectional_lstm_inference(inputs, input_units,
+                                              output_units, is_train, FLAGS)
+  elif FLAGS.model == "gru":
+    return model.gru_inference(inputs, input_units, output_units, is_train,
                                FLAGS)
 
 
@@ -337,11 +346,19 @@ def main():
   output_units = FLAGS.label_size
   logits = inference(train_features_op, input_units, output_units, True)
 
-  if FLAGS.scenario == "classification":
+  if FLAGS.loss == "sparse_cross_entropy":
     cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(
         logits=logits, labels=train_label_op)
     loss = tf.reduce_mean(cross_entropy, name="loss")
-  elif FLAGS.scenario == "regression":
+  elif FLAGS.loss == "cross_entropy":
+
+    #train_label_op =
+    #validation_label_op =
+
+    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+        logits=logits, labels=train_label_op)
+    loss = tf.reduce_mean(cross_entropy, name="loss")
+  elif FLAGS.loss == "mean_square":
     msl = tf.square(logits - train_label_op, name="msl")
     loss = tf.reduce_mean(msl, name="loss")
 

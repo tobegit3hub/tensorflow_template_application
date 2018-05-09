@@ -129,6 +129,44 @@ def cnn_inference(inputs, input_units, output_units, is_train=True,
     Define the CNN model.
     """
 
+  # [BATCH_SIZE, 9] -> [BATCH_SIZE, 3, 3, 1]
+  inputs = tf.reshape(inputs, [-1, 3, 3, 1])
+
+  # [BATCH_SIZE, 3, 3, 1] -> [BATCH_SIZE, 3, 3, 8]
+  with tf.variable_scope("conv_0"):
+    weights = tf.get_variable(
+        "weights", [3, 3, 1, 8], initializer=tf.random_normal_initializer())
+    bias = tf.get_variable(
+        "bias", [8], initializer=tf.random_normal_initializer())
+
+    layer = tf.nn.conv2d(inputs, weights, strides=[1, 1, 1, 1], padding="SAME")
+    layer = tf.nn.bias_add(layer, bias)
+    layer = tf.nn.relu(layer)
+
+  # [BATCH_SIZE, 3, 3, 8] -> [BATCH_SIZE, 3 * 3 * 8]
+  layer = tf.reshape(layer, [-1, 3 * 3 * 8])
+
+  # [BATCH_SIZE, 3 * 3 * 8] -> [BATCH_SIZE, LABEL_SIZE]
+  with tf.variable_scope("output_layer"):
+    weights = tf.get_variable(
+        "weights", [3 * 3 * 8, FLAGS.label_size],
+        initializer=tf.random_normal_initializer())
+    bias = tf.get_variable(
+        "bias", [FLAGS.label_size], initializer=tf.random_normal_initializer())
+    layer = tf.add(tf.matmul(layer, weights), bias)
+
+  return layer
+
+
+def customized_cnn_inference(inputs,
+                             input_units,
+                             output_units,
+                             is_train=True,
+                             FLAGS=None):
+  """
+    Define the CNN model.
+    """
+
   # TODO: Change if validate_batch_size is different
   # [BATCH_SIZE, 512 * 512 * 1] -> [BATCH_SIZE, 512, 512, 1]
   inputs = tf.reshape(inputs, [FLAGS.train_batch_size, 512, 512, 1])
@@ -184,6 +222,96 @@ def cnn_inference(inputs, input_units, output_units, is_train=True,
         "bias", [FLAGS.label_size], initializer=tf.random_normal_initializer())
     layer = tf.add(tf.matmul(layer, weights), bias)
 
+  return layer
+
+
+def lstm_inference(inputs,
+                   input_units,
+                   output_units,
+                   is_train=True,
+                   FLAGS=None):
+
+  RNN_HIDDEN_UNITS = 128
+  timesteps = 3
+  number_input = 3
+
+  weights = tf.Variable(tf.random_normal([RNN_HIDDEN_UNITS, output_units]))
+  biases = tf.Variable(tf.random_normal([output_units]))
+
+  #  [BATCH_SIZE, 9] -> [BATCH_SIZE, 3, 3]
+  x = tf.reshape(inputs, [-1, timesteps, number_input])
+
+  # [BATCH_SIZE, 3, 3] -> 3 * [BATCH_SIZE, 3]
+  x = tf.unstack(x, timesteps, 1)
+
+  # output size is 128, state size is (c=128, h=128)
+  lstm_cell = tf.contrib.rnn.BasicLSTMCell(RNN_HIDDEN_UNITS, forget_bias=1.0)
+
+  # outputs is array of 3 * [BATCH_SIZE, 3]
+  outputs, states = tf.contrib.rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
+
+  # outputs[-1] is [BATCH_SIZE, 3]
+  layer = tf.matmul(outputs[-1], weights) + biases
+  return layer
+
+
+def bidirectional_lstm_inference(inputs,
+                                 input_units,
+                                 output_units,
+                                 is_train=True,
+                                 FLAGS=None):
+
+  RNN_HIDDEN_UNITS = 128
+  timesteps = 3
+  number_input = 3
+
+  weights = tf.Variable(tf.random_normal([RNN_HIDDEN_UNITS, output_units]))
+  biases = tf.Variable(tf.random_normal([output_units]))
+
+  #  [BATCH_SIZE, 9] -> [BATCH_SIZE, 3, 3]
+  x = tf.reshape(inputs, [-1, timesteps, number_input])
+
+  # [BATCH_SIZE, 3, 3] -> 3 * [BATCH_SIZE, 3]
+  x = tf.unstack(x, timesteps, 1)
+
+  # Update the hidden units for bidirection-rnn
+  fw_lstm_cell = tf.contrib.rnn.BasicLSTMCell(
+      RNN_HIDDEN_UNITS / 2, forget_bias=1.0)
+  bw_lstm_cell = tf.contrib.rnn.BasicLSTMCell(
+      RNN_HIDDEN_UNITS / 2, forget_bias=1.0)
+
+  outputs, _, _ = tf.contrib.rnn.static_bidirectional_rnn(
+      fw_lstm_cell, bw_lstm_cell, x, dtype=tf.float32)
+
+  # outputs[-1] is [BATCH_SIZE, 3]
+  layer = tf.matmul(outputs[-1], weights) + biases
+  return layer
+
+
+def gru_inference(inputs, input_units, output_units, is_train=True,
+                  FLAGS=None):
+
+  RNN_HIDDEN_UNITS = 128
+  timesteps = 3
+  number_input = 3
+
+  weights = tf.Variable(tf.random_normal([RNN_HIDDEN_UNITS, output_units]))
+  biases = tf.Variable(tf.random_normal([output_units]))
+
+  #  [BATCH_SIZE, 9] -> [BATCH_SIZE, 3, 3]
+  x = tf.reshape(inputs, [-1, timesteps, number_input])
+
+  # [BATCH_SIZE, 3, 3] -> 3 * [BATCH_SIZE, 3]
+  x = tf.unstack(x, timesteps, 1)
+
+  # output size is 128, state size is (c=128, h=128)
+  lstm_cell = tf.contrib.rnn.GRUCell(RNN_HIDDEN_UNITS)
+
+  # outputs is array of 3 * [BATCH_SIZE, 3]
+  outputs, states = tf.contrib.rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
+
+  # outputs[-1] is [BATCH_SIZE, 3]
+  layer = tf.matmul(outputs[-1], weights) + biases
   return layer
 
 
