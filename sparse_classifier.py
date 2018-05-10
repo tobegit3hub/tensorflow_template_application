@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 
+from __future__ import absolute_import, division, print_function
+
 import datetime
-import json
 import logging
-import math
 import os
 import pprint
 
@@ -17,12 +17,16 @@ from tensorflow.python.saved_model import (
     signature_constants, signature_def_utils, tag_constants, utils)
 from tensorflow.python.util import compat
 
+import model
+import util
+
 # Define hyperparameters
 flags = tf.app.flags
-FLAGS = flags.FLAGS
 flags.DEFINE_boolean("enable_colored_log", False, "Enable colored log")
 flags.DEFINE_string("train_tfrecords_file",
                     "./data/a8a/a8a_train.libsvm.tfrecords",
+                    "The glob pattern of train TFRecords files")
+flags.DEFINE_string("train_files", "./data/a8a/a8a_train.libsvm.tfrecords",
                     "The glob pattern of train TFRecords files")
 flags.DEFINE_string("validate_tfrecords_file",
                     "./data/a8a/a8a_test.libsvm.tfrecords",
@@ -32,6 +36,8 @@ flags.DEFINE_integer("label_size", 2, "Number of label size")
 flags.DEFINE_float("learning_rate", 0.01, "The learning rate")
 flags.DEFINE_integer("epoch_number", 10, "Number of epochs to train")
 flags.DEFINE_integer("batch_size", 1024, "The batch size of training")
+flags.DEFINE_integer("train_batch_size", 64, "The batch size of training")
+flags.DEFINE_integer("validation_batch_size", 64, "The batch size of training")
 flags.DEFINE_integer("validate_batch_size", 1024,
                      "The batch size of validation")
 flags.DEFINE_integer("batch_thread_number", 1,
@@ -64,6 +70,32 @@ flags.DEFINE_string("inference_result_file", "./inference_result.txt",
                     "The result file from inference")
 flags.DEFINE_boolean("benchmark_mode", False,
                      "Reduce extra computation in benchmark mode")
+FLAGS = flags.FLAGS
+
+# Print flags
+parameter_value_map = {}
+for key in FLAGS.__flags.keys():
+  parameter_value_map[key] = FLAGS.__flags[key].value
+pprint.PrettyPrinter().pprint(parameter_value_map)
+
+
+def parse_tfrecords_function(example_proto):
+  """
+    Decode TFRecords for Dataset.
+    
+    Args:
+      example_proto: TensorFlow ExampleProto object. 
+    
+    Return:
+      The op of features and labels
+    """
+  features = {
+      "ids": tf.VarLenFeature(tf.int64),
+      "values": tf.VarLenFeature(tf.float32),
+      "label": tf.FixedLenFeature([], tf.int64)
+  }
+  parsed_features = tf.parse_single_example(example_proto, features=features)
+  return parsed_features["label"], parsed_features["ids"], features["values"]
 
 
 def main():
@@ -92,7 +124,6 @@ def main():
   OUTPUT_PATH = FLAGS.output_path
   if not OUTPUT_PATH.startswith("fds://") and not os.path.exists(OUTPUT_PATH):
     os.makedirs(OUTPUT_PATH)
-  pprint.PrettyPrinter().pprint(FLAGS.__flags)
 
   # Read TFRecords files for training
   def read_and_decode(filename_queue):
@@ -114,13 +145,31 @@ def main():
   features = tf.parse_example(
       batch_serialized_example,
       features={
-          "label": tf.FixedLenFeature([], tf.float32),
+          "label": tf.FixedLenFeature([], tf.int64),
           "ids": tf.VarLenFeature(tf.int64),
           "values": tf.VarLenFeature(tf.float32),
       })
   batch_labels = features["label"]
   batch_ids = features["ids"]
   batch_values = features["values"]
+  """
+  epoch_number = FLAGS.epoch_number
+  if epoch_number <= 0:
+      epoch_number = -1
+  train_buffer_size = FLAGS.train_batch_size * 3
+  validation_buffer_size = FLAGS.train_batch_size * 3
+
+  train_filename_list = [filename for filename in FLAGS.train_files.split(",")]
+  train_filename_placeholder = tf.placeholder(tf.string, shape=[None])
+
+  train_dataset = tf.data.TFRecordDataset(train_filename_placeholder)
+  train_dataset = train_dataset.repeat(
+        epoch_number).map(parse_tfrecords_function).batch(FLAGS.train_batch_size).shuffle(
+        buffer_size=train_buffer_size)
+
+  train_dataset_iterator = train_dataset.make_initializable_iterator()
+  batch_labels, batch_ids, batch_values = train_dataset_iterator.get_next()
+  """
 
   # Read TFRecords file for validation
   validate_filename_queue = tf.train.string_input_producer(
@@ -136,7 +185,7 @@ def main():
   validate_features = tf.parse_example(
       validate_batch_serialized_example,
       features={
-          "label": tf.FixedLenFeature([], tf.float32),
+          "label": tf.FixedLenFeature([], tf.int64),
           "ids": tf.VarLenFeature(tf.int64),
           "values": tf.VarLenFeature(tf.float32),
       })
@@ -359,6 +408,15 @@ def main():
     logging.info("Start to run with mode: {}".format(MODE))
     writer = tf.summary.FileWriter(OUTPUT_PATH, sess.graph)
     sess.run(init_op)
+    """
+    sess.run(
+            [
+                train_dataset_iterator.initializer
+            ],
+            feed_dict={
+                train_filename_placeholder: train_filename_list
+            })
+    """
 
     if MODE == "train":
       # Restore session and start queue runner
