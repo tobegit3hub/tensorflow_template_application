@@ -252,20 +252,24 @@ def main():
   inference_op = tf.argmax(inference_softmax, 1)
   keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1])
   keys = tf.identity(keys_placeholder)
-  model_signature = signature_def_utils.build_signature_def(
-      inputs={
-          "keys": utils.build_tensor_info(keys_placeholder),
-          "indexs": utils.build_tensor_info(sparse_index),
-          "ids": utils.build_tensor_info(sparse_ids),
-          "values": utils.build_tensor_info(sparse_values),
-          "shape": utils.build_tensor_info(sparse_shape)
-      },
-      outputs={
-          "keys": utils.build_tensor_info(keys),
-          "softmax": utils.build_tensor_info(inference_softmax),
-          "prediction": utils.build_tensor_info(inference_op)
-      },
-      method_name=signature_constants.PREDICT_METHOD_NAME)
+
+  signature_def_map = {
+      signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+      signature_def_utils.build_signature_def(
+          inputs={
+              "keys": utils.build_tensor_info(keys_placeholder),
+              "indexs": utils.build_tensor_info(sparse_index),
+              "ids": utils.build_tensor_info(sparse_ids),
+              "values": utils.build_tensor_info(sparse_values),
+              "shape": utils.build_tensor_info(sparse_shape)
+          },
+          outputs={
+              "keys": utils.build_tensor_info(keys),
+              "softmax": utils.build_tensor_info(inference_softmax),
+              "prediction": utils.build_tensor_info(inference_op)
+          },
+          method_name=signature_constants.PREDICT_METHOD_NAME)
+  }
 
   # Initialize saver and summary
   saver = tf.train.Saver()
@@ -332,7 +336,7 @@ def main():
               FLAGS.model_path,
               FLAGS.model_version,
               sess,
-              model_signature,
+              signature_def_map,
               is_save_graph=False)
       finally:
         coord.request_stop()
@@ -348,7 +352,7 @@ def main():
           FLAGS.model_path,
           FLAGS.model_version,
           sess,
-          model_signature,
+          signature_def_map,
           is_save_graph=False)
 
     elif FLAGS.mode == "inference":

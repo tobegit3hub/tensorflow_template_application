@@ -10,10 +10,10 @@ import pprint
 import numpy as np
 import tensorflow as tf
 from sklearn import metrics
-from tensorflow.python.saved_model import builder as saved_model_builder
-from tensorflow.python.saved_model import (
-    signature_constants, signature_def_utils, tag_constants, utils)
+from tensorflow.python.saved_model import (signature_constants,
+                                           signature_def_utils, utils)
 
+import util
 import model
 
 
@@ -28,7 +28,7 @@ def define_flags():
   flags = tf.app.flags
   flags.DEFINE_string("mode", "train", "Support train, inference, savedmodel")
   flags.DEFINE_boolean("enable_benchmark", False, "Enable benchmark")
-  flags.DEFINE_boolean("resume_from_checkpoint", True, "Resume or not")
+  flags.DEFINE_boolean("resume_from_checkpoint", False, "Resume or not")
   flags.DEFINE_string("scenario", "classification",
                       "Support classification, regression")
   flags.DEFINE_string(
@@ -95,108 +95,6 @@ def define_flags():
   pprint.PrettyPrinter().pprint(parameter_value_map)
 
   return FLAGS
-
-
-def get_optimizer_by_name(optimizer_name, learning_rate):
-  """
-  Get optimizer object by the optimizer name.
-  
-  Args:
-    optimizer_name: Name of the optimizer. 
-    learning_rate: The learning rate.
-  
-  Return:
-    The optimizer object.
-  """
-
-  logging.info("Use the optimizer: {}".format(optimizer_name))
-  if optimizer_name == "sgd":
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-  elif optimizer_name == "adadelta":
-    optimizer = tf.train.AdadeltaOptimizer(learning_rate)
-  elif optimizer_name == "adagrad":
-    optimizer = tf.train.AdagradOptimizer(learning_rate)
-  elif optimizer_name == "adam":
-    optimizer = tf.train.AdamOptimizer(learning_rate)
-  elif optimizer_name == "ftrl":
-    optimizer = tf.train.FtrlOptimizer(learning_rate)
-  elif optimizer_name == "rmsprop":
-    optimizer = tf.train.RMSPropOptimizer(learning_rate)
-  else:
-    optimizer = tf.train.GradientDescentOptimizer(learning_rate)
-  return optimizer
-
-
-def save_model(model_path,
-               model_version,
-               sess,
-               model_signature,
-               is_save_graph=False):
-  """
-  Save the model in standard SavedModel format.
-  
-  Args:
-    model_path: The path to model.
-    model_version: The version of model.
-    sess: The TensorFlow Session object.
-    model_signature: The TensorFlow SignatureDef object.
-    is_save_graph: Should save graph file of not.
-  
-  Return:
-    None
-  """
-
-  export_path = os.path.join(model_path, str(model_version))
-  if os.path.isdir(export_path) == True:
-    logging.error("The model exists in path: {}".format(export_path))
-    return
-
-  try:
-    # Save the SavedModel
-    legacy_init_op = tf.group(tf.tables_initializer(), name='legacy_init_op')
-    builder = saved_model_builder.SavedModelBuilder(export_path)
-    builder.add_meta_graph_and_variables(
-        sess, [tag_constants.SERVING],
-        clear_devices=True,
-        signature_def_map={
-            signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
-            model_signature,
-        },
-        legacy_init_op=legacy_init_op)
-    logging.info("Save the model in: {}".format(export_path))
-    builder.save()
-
-    # Save the GraphDef
-    if is_save_graph == True:
-      graph_file_name = "graph.pb"
-      logging.info("Save the graph file in: {}".format(model_path))
-      tf.train.write_graph(
-          sess.graph_def, model_path, graph_file_name, as_text=False)
-
-  except Exception as e:
-    logging.error("Fail to export saved model, exception: {}".format(e))
-
-
-def restore_from_checkpoint(sess, saver, checkpoint_file_path):
-  """
-  Restore session from checkpoint files.
-  
-  Args:
-    sess: TensorFlow Session object.
-    saver: TensorFlow Saver object.
-    checkpoint_file_path: The checkpoint file path.
-  
-  Return:
-    True if restore successfully and False if fail
-  """
-  if checkpoint_file_path:
-    logging.info(
-        "Restore session from checkpoint: {}".format(checkpoint_file_path))
-    saver.restore(sess, checkpoint_file_path)
-    return True
-  else:
-    logging.error("Checkpoint not found: {}".format(checkpoint_file_path))
-    return False
 
 
 def parse_tfrecords_function(example_proto):
@@ -351,11 +249,7 @@ def main():
         logits=logits, labels=train_label_op)
     loss = tf.reduce_mean(cross_entropy, name="loss")
   elif FLAGS.loss == "cross_entropy":
-
-    #train_label_op =
-    #validation_label_op =
-
-    cross_entropy = tf.nn.softmax_cross_entropy_with_logits(
+    cross_entropy = tf.nn.cross_entropy_with_logits(
         logits=logits, labels=train_label_op)
     loss = tf.reduce_mean(cross_entropy, name="loss")
   elif FLAGS.loss == "mean_square":
@@ -376,7 +270,7 @@ def main():
         FLAGS.lr_decay_rate,
         staircase=True)
 
-  optimizer = get_optimizer_by_name(FLAGS.optimizer, learning_rate)
+  optimizer = util.get_optimizer_by_name(FLAGS.optimizer, learning_rate)
   train_op = optimizer.minimize(loss, global_step=global_step)
 
   # Need to re-use the Variables for training and validation
@@ -409,17 +303,32 @@ def main():
       inference_softmax_op, 1, name="inference_prediction")
   keys_placeholder = tf.placeholder(tf.int32, shape=[None, 1], name="keys")
   keys_identity = tf.identity(keys_placeholder, name="inference_keys")
-  model_signature = signature_def_utils.build_signature_def(
-      inputs={
-          "keys": utils.build_tensor_info(keys_placeholder),
-          "features": utils.build_tensor_info(inference_features)
-      },
-      outputs={
-          "keys": utils.build_tensor_info(keys_identity),
-          "prediction": utils.build_tensor_info(inference_prediction_op),
-          "softmax": utils.build_tensor_info(inference_softmax_op),
-      },
-      method_name=signature_constants.PREDICT_METHOD_NAME)
+
+  signature_def_map = {
+      signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+      signature_def_utils.build_signature_def(
+          inputs={
+              "keys": utils.build_tensor_info(keys_placeholder),
+              "features": utils.build_tensor_info(inference_features)
+          },
+          outputs={
+              "keys": utils.build_tensor_info(keys_identity),
+              "prediction": utils.build_tensor_info(inference_prediction_op),
+          },
+          method_name="tensorflow/serving/predictss"),
+      "serving_detail":
+      signature_def_utils.build_signature_def(
+          inputs={
+              "keys": utils.build_tensor_info(keys_placeholder),
+              "features": utils.build_tensor_info(inference_features)
+          },
+          outputs={
+              "keys": utils.build_tensor_info(keys_identity),
+              "prediction": utils.build_tensor_info(inference_prediction_op),
+              "softmax": utils.build_tensor_info(inference_softmax_op),
+          },
+          method_name="sdfas")
+  }
 
   # Initialize saver and summary
   saver = tf.train.Saver()
@@ -451,7 +360,7 @@ def main():
 
     if FLAGS.mode == "train":
       if FLAGS.resume_from_checkpoint:
-        restore_from_checkpoint(sess, saver, latest_checkpoint_file_path)
+        util.restore_from_checkpoint(sess, saver, latest_checkpoint_file_path)
 
       try:
         start_time = datetime.datetime.now()
@@ -496,29 +405,29 @@ def main():
           logging.info("Finish training for benchmark")
         else:
           # Step 5: Export the model after training
-          save_model(
+          util.save_model(
               FLAGS.model_path,
               FLAGS.model_version,
               sess,
-              model_signature,
+              signature_def_map,
               is_save_graph=False)
 
     elif FLAGS.mode == "savedmodel":
-      if restore_from_checkpoint(sess, saver,
-                                 latest_checkpoint_file_path) == False:
+      if util.restore_from_checkpoint(sess, saver,
+                                      latest_checkpoint_file_path) == False:
         logging.error("No checkpoint for exporting model, exit now")
         return
 
-      save_model(
+      util.save_model(
           FLAGS.model_path,
           FLAGS.model_version,
           sess,
-          model_signature,
+          signature_def_map,
           is_save_graph=False)
 
     elif FLAGS.mode == "inference":
-      if restore_from_checkpoint(sess, saver,
-                                 latest_checkpoint_file_path) == False:
+      if util.restore_from_checkpoint(sess, saver,
+                                      latest_checkpoint_file_path) == False:
         logging.error("No checkpoint for inference, exit now")
         return
 
