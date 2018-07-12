@@ -16,6 +16,11 @@ from tensorflow.python.saved_model import (signature_constants,
 import util
 import model
 
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
+
 
 def define_flags():
   """
@@ -89,12 +94,15 @@ def define_flags():
   ])
 
   # Print flags
+  FLAGS.mode
   parameter_value_map = {}
   for key in FLAGS.__flags.keys():
     parameter_value_map[key] = FLAGS.__flags[key].value
   pprint.PrettyPrinter().pprint(parameter_value_map)
-
   return FLAGS
+
+
+FLAGS = define_flags()
 
 
 def parse_tfrecords_function(example_proto):
@@ -173,10 +181,6 @@ def inference(inputs, input_units, output_units, is_train=True):
   elif FLAGS.model == "gru":
     return model.gru_inference(inputs, input_units, output_units, is_train,
                                FLAGS)
-
-
-logging.basicConfig(level=logging.INFO)
-FLAGS = define_flags()
 
 
 def main():

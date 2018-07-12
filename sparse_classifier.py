@@ -14,8 +14,12 @@ from tensorflow.python.saved_model import (
     signature_constants, signature_def_utils, tag_constants, utils)
 
 import sparse_model
-import model
 import util
+
+logging.basicConfig(
+    format='%(asctime)s %(levelname)-8s %(message)s',
+    level=logging.INFO,
+    datefmt='%Y-%m-%d %H:%M:%S')
 
 
 def define_flags():
@@ -34,6 +38,7 @@ def define_flags():
                       "The glob pattern of train TFRecords files")
   flags.DEFINE_integer("feature_size", 124, "Number of feature size")
   flags.DEFINE_integer("label_size", 2, "Number of label size")
+  flags.DEFINE_string("label_type", "int", "The type of label")
   flags.DEFINE_float("learning_rate", 0.01, "The learning rate")
   flags.DEFINE_integer("epoch_number", 10, "Number of epochs to train")
   flags.DEFINE_integer("batch_size", 1024, "The batch size of training")
@@ -81,12 +86,15 @@ def define_flags():
   ])
 
   # Print flags
+  FLAGS.mode
   parameter_value_map = {}
   for key in FLAGS.__flags.keys():
     parameter_value_map[key] = FLAGS.__flags[key].value
   pprint.PrettyPrinter().pprint(parameter_value_map)
-
   return FLAGS
+
+
+FLAGS = define_flags()
 
 
 def parse_tfrecords_function(example_proto):
@@ -100,15 +108,31 @@ def parse_tfrecords_function(example_proto):
       The op of features and labels
     """
 
-  features = {
-      "ids": tf.VarLenFeature(tf.int64),
-      "values": tf.VarLenFeature(tf.float32),
-      "label": tf.FixedLenFeature([], tf.int64, default_value=0)
-  }
+  if FLAGS.label_type == "int":
+    features = {
+        "ids": tf.VarLenFeature(tf.int64),
+        "values": tf.VarLenFeature(tf.float32),
+        "label": tf.FixedLenFeature([], tf.int64, default_value=0)
+    }
 
-  parsed_features = tf.parse_single_example(example_proto, features)
-  return parsed_features["label"], parsed_features["ids"], parsed_features[
-      "values"]
+    parsed_features = tf.parse_single_example(example_proto, features)
+    labels = parsed_features["label"]
+    ids = parsed_features["ids"]
+    values = parsed_features["values"]
+
+  elif FLAGS.label_type == "float":
+    features = {
+        "ids": tf.VarLenFeature(tf.int64),
+        "values": tf.VarLenFeature(tf.float32),
+        "label": tf.FixedLenFeature([], tf.float32, default_value=0)
+    }
+
+    parsed_features = tf.parse_single_example(example_proto, features)
+    labels = tf.cast(parsed_features["label"], tf.int32)
+    ids = parsed_features["ids"]
+    values = parsed_features["values"]
+
+  return labels, ids, values
 
 
 def inference(sparse_ids, sparse_values, is_train=True):
@@ -131,10 +155,6 @@ def inference(sparse_ids, sparse_values, is_train=True):
   elif FLAGS.model == "customized":
     return sparse_model.customized_inference(sparse_ids, sparse_values,
                                              is_train, FLAGS)
-
-
-logging.basicConfig(level=logging.INFO)
-FLAGS = define_flags()
 
 
 def main():
@@ -170,8 +190,8 @@ def main():
   validation_filename_placeholder = tf.placeholder(tf.string, shape=[None])
   validation_dataset = tf.data.TFRecordDataset(validation_filename_placeholder)
   validation_dataset = validation_dataset.map(parse_tfrecords_function).repeat(
-      epoch_number).batch(FLAGS.validation_batch_size).shuffle(
-          buffer_size=validation_buffer_size)
+  ).batch(FLAGS.validation_batch_size).shuffle(
+      buffer_size=validation_buffer_size)
   validation_dataset_iterator = validation_dataset.make_initializable_iterator(
   )
   validation_labels, validation_ids, validation_values = validation_dataset_iterator.get_next(
