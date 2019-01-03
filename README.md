@@ -2,15 +2,14 @@
 
 It is the generic golden program for deep learning with [TensorFlow](https://github.com/tensorflow/tensorflow).
 
-Following are the supported features.
+![](./architecture.jpeg)
 
-- [x] Data Format
+- [x] Data Formats
   - [x] [CSV](./data/)
   - [x] [LIBSVM](./data/)
   - [x] [TFRecords](./data/)
 - [x] Predict Server
   - [x] [TensorFlow serving](./cpp_predict_server/)
-  - [x] [Python gRPC server](./python_predict_server/)
   - [x] [Python HTTP server](./http_service/)
 - [x] Predict Client
   - [x] [Python gPRC client](./python_predict_client/)
@@ -21,12 +20,6 @@ Following are the supported features.
   - [x] [Spark client](./java_predict_client/)
   - [x] [Android client](./android_client/)
   - [x] [iOS client](./ios_client/)
-- [x] Use Cases
-  - [x] Train model
-  - [x] Export model
-  - [x] Validate acc/auc
-  - [x] Inference online
-  - [x] Inference offline
 - [x] Network Models
   - [x] Logistic regression
   - [x] Deep neural network
@@ -34,7 +27,7 @@ Following are the supported features.
   - [x] Wide and deep model
   - [x] Regression model
   - [x] Customized models
-- [x] Others
+- [x] Other Features
   - [x] Checkpoint
   - [x] TensorBoard
   - [x] Exporter
