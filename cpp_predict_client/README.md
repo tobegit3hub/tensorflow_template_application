@@ -8,7 +8,7 @@ Now you need to use `bazel` and just refer to to [inception_client.cc](https://g
 
 ## Usage
 
-Add the build rule in `tensorflow_serving/example/BUILD` and copy [sparse_predict_client.cc](./sparse_predict_client.cc) in example direcotry.
+Add the build rule in `tensorflow_serving/example/BUILD` and copy [sparse_predict_client.cc](./sparse_predict_client.cc) in example directory.
 
 ```
 cc_binary(
