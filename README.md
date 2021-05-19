@@ -142,4 +142,4 @@ mvn compile exec:java -Dexec.mainClass="com.tobe.DensePredictClient" -Dexec.args
 
 This project is widely used for different tasks with dense or sparse data.
 
-If you want to make contirbutions, feel free to open an [issue](https://github.com/tobegit3hub/deep_recommend_system/issues) or [pull-request](https://github.com/tobegit3hub/deep_recommend_system/pulls).
+If you want to make contributions, feel free to open an [issue](https://github.com/tobegit3hub/deep_recommend_system/issues) or [pull-request](https://github.com/tobegit3hub/deep_recommend_system/pulls).
